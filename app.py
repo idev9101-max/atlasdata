@@ -77,6 +77,9 @@ class H(BaseHTTPRequestHandler):
         pr = rheaders.get("payment-response") if rheaders else None
         if pr:
             extra["payment-response"] = pr
+        wa = rheaders.get("www-authenticate") if rheaders else None
+        if wa:
+            extra["www-authenticate"] = wa
         req_h = rheaders.get("payment-required") if rheaders else None
         if status == 402 and req_h:
             extra["payment-required"] = _rewrite_resource_url(req_h, _public_origin(self.headers))
