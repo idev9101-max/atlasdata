@@ -101,6 +101,17 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify({ error: "upstream unreachable" }));
     }
   }
+  if (path.startsWith("/blog/")) {
+    try {
+      const { readFileSync } = await import("node:fs");
+      const file = "blog/" + path.slice(6).replace(/[^a-z0-9_-]/gi, "") + ".html";
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      return res.end(readFileSync(file));
+    } catch (e) {
+      res.writeHead(404, { "content-type": "application/json" });
+      return res.end(JSON.stringify({ error: "no such post" }));
+    }
+  }
   if (path === "/" || path === "/api") {
     res.writeHead(200, { "content-type": "application/json" });
     return res.end(JSON.stringify({ service: "AtlasData", upstream: UPSTREAM, endpoints: ROUTES.map(r => ({ pattern: r.re.source, price: r.atomic, desc: r.desc })) }));
