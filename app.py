@@ -89,6 +89,14 @@ class H(BaseHTTPRequestHandler):
 
     def do_GET(self):
         u = urlparse(self.path)
+        if u.path.startswith("/blog/"):
+            import re
+            slug = re.sub(r"[^a-z0-9_-]", "", u.path[6:], flags=re.I)
+            try:
+                body = open(os.path.join(os.path.dirname(__file__), "blog", slug + ".html"), "rb").read()
+            except OSError:
+                return self._send(404, json.dumps({"error": "no such post"}))
+            return self._send(200, body, "text/html; charset=utf-8")
         if u.path in ("/", "/healthz"):
             return self._send(200, json.dumps(INDEX))
         if u.path in ("/.well-known/x402", "/llms.txt", "/payapi-verify.txt",
