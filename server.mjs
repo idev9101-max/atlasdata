@@ -74,9 +74,31 @@ function challenge(url, route, pathParams) {
 
 import http from "node:http";
 
+const FREE_PATHS = [
+  /^\/\.well-known\//, /^\/llms\.txt$/, /^\/icon\.png$/, /^\/free\//,
+  /^\/api\/x402\/census$/, /^\/api\/x402\/preflight$/, /^\/api\/report-preview\//,
+];
+const REDIRECTS = { "/census": "/api/x402/census", "/reports": "/api/report-preview/x402-market-census-expanded" };
+
 const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, "http://x");
   const path = u.pathname;
+  if (REDIRECTS[path]) {
+    res.writeHead(307, { location: REDIRECTS[path] });
+    return res.end();
+  }
+  if (FREE_PATHS.some((re) => re.test(path))) {
+    try {
+      const r = await fetch(UPSTREAM + path + u.search);
+      const body = Buffer.from(await r.arrayBuffer());
+      const h = { "content-type": r.headers.get("content-type") || "application/json" };
+      res.writeHead(r.status, h);
+      return res.end(body);
+    } catch (e) {
+      res.writeHead(502, { "content-type": "application/json" });
+      return res.end(JSON.stringify({ error: "upstream unreachable" }));
+    }
+  }
   for (const route of ROUTES) {
     const m = path.match(route.re);
     if (!m) continue;
