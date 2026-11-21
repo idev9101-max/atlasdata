@@ -209,13 +209,13 @@ routes = {
         tags=["price", "crypto", "exchange", "market-data"],
     ),
     "GET /api/crypto/prices": paid(
-        "$0.001", "Batch crypto prices: ids=bitcoin,ethereum,solana (CoinGecko ids, max 20) returns usd price, 24h change, market cap, volume per asset. One call replaces N single-price calls.",
+        "$0.0005", "Batch crypto prices: ids=bitcoin,ethereum,solana (CoinGecko ids, max 20) returns usd price, 24h change, market cap, volume per asset. One call replaces N single-price calls.",
         {"bitcoin": {"usd": 100123, "usd_24h_change": 1.2, "usd_market_cap": 1990000000000, "usd_24h_vol": 40000000000}},
         input_schema={"type": "object", "properties": {"ids": {"type": "string"}}, "required": ["ids"]},
         tags=["price", "crypto", "batch", "market-data"],
     ),
     "GET /api/crypto/token/[chain]/[address]": paid(
-        "$0.001", "DEX token lookup by contract: price_usd, liquidity, 24h volume/txns, top pair. chain: eth|bsc|polygon|arbitrum|base|solana|... (DexScreener chain id).",
+        "$0.0005", "DEX token lookup by contract: price_usd, liquidity, 24h volume/txns, top pair. chain: eth|bsc|polygon|arbitrum|base|solana|... (DexScreener chain id).",
         {"symbol": "WETH", "price_usd": "3200.1", "liquidity_usd": 12000000, "dex": "uniswap"},
         path_params={"type": "object", "properties": {"chain": {"type": "string"}, "address": {"type": "string"}}, "required": ["chain", "address"]},
         tags=["price", "crypto", "token", "dex", "market-data"],
