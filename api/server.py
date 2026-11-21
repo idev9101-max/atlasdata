@@ -209,7 +209,7 @@ routes = {
         tags=["price", "crypto", "exchange", "market-data"],
     ),
     "GET /api/qr": paid(
-        "$0.01", "Generate a QR code PNG for any text/URL/payment link.",
+        "$0.001", "Generate a QR code PNG for any text/URL/payment link.",
         {"format": "png-base64", "text": "https://example.com"},
         input_schema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
         tags=["qr", "utility"],
@@ -221,7 +221,7 @@ routes = {
         tags=["image", "gen", "ai", "media", "generative"],
     ),
     "GET /api/llm/ask": paid(
-        "$0.01", "LLM text completion  -  ask any question, get a model-generated answer as JSON. Params: prompt (required), model=openai-fast, system (optional system instruction), seed. Covers the LLM/inference vertical  -  one of the top x402 demand categories. No account, no API key.   -  $0.01/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.001", "LLM text completion  -  ask any question, get a model-generated answer as JSON. Params: prompt (required), model=openai-fast, system (optional system instruction), seed. Covers the LLM/inference vertical  -  one of the top x402 demand categories. No account, no API key.   -  $0.01/call. Support: atlasdataeb5a87@fldubai.com",
         {"prompt": "What is a honeypot token?", "model": "openai-fast", "answer": "..."},
         input_schema={"type": "object", "properties": {"prompt": {"type": "string"}, "model": {"type": "string"}, "system": {"type": "string"}, "seed": {"type": "integer"}}, "required": ["prompt"]},
         tags=["llm", "ai", "inference", "gen", "agent"],
@@ -233,7 +233,7 @@ routes = {
         tags=["llm", "ai", "inference", "chat", "completions", "openai", "agent"],
     ),
     "GET /api/weather/current": paid(
-        "$0.002", "Weather bundle for any coordinates  -  current temperature, feels-like, humidity, wind speed/direction/gusts, pressure, cloud cover, precipitation, UV index, day/night flag in one call. Params: lat, lon (required). No account, no API key.   -  $0.002/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.001", "Weather bundle for any coordinates  -  current temperature, feels-like, humidity, wind speed/direction/gusts, pressure, cloud cover, precipitation, UV index, day/night flag in one call. Params: lat, lon (required). No account, no API key.   -  $0.002/call. Support: atlasdataeb5a87@fldubai.com",
         {"lat": 32.08, "lon": 34.78, "temperature_c": 21.5, "humidity": 60, "wind_kmh": 12},
         input_schema={"type": "object", "properties": {"lat": {"type": "number"}, "lon": {"type": "number"}}, "required": ["lat", "lon"]},
         tags=["weather", "data", "current", "forecast"],
@@ -369,7 +369,7 @@ routes = {
         tags=["chain", "base", "gas", "primitive"],
     ),
     "GET /api/chain/events": paid(
-        "$0.01", "Raw event logs on Base (eth_getLogs)  -  params: address (contract), topic0 (optional), from_block, to_block (max ~10k block range). No account, no API key.   -  $0.01/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.001", "Raw event logs on Base (eth_getLogs)  -  params: address (contract), topic0 (optional), from_block, to_block (max ~10k block range). No account, no API key.   -  $0.01/call. Support: atlasdataeb5a87@fldubai.com",
         {"address": "0x...", "logs": [{"topics": [], "data": "0x...", "block": 37000000}]},
         input_schema={"type": "object", "properties": {"address": {"type": "string"}, "topic0": {"type": "string"}, "from_block": {"type": "integer"}, "to_block": {"type": "integer"}}, "required": ["address"]},
         tags=["chain", "base", "events", "logs", "primitive"],
