@@ -1,0 +1,8 @@
+fastapi==0.162.5
+uvicorn==0.54.0
+httpx==0.28.1
+x402[evm,svm]==2.28.0
+pymacaroons
+qrcode
+pillow
+beautifulsoup4

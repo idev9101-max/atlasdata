@@ -11,7 +11,8 @@ import io
 import json
 
 import httpx
-from fastapi import FastAPI, Request
+import builtins
+from fastapi import FastAPI, Request, Query
 from fastapi.responses import JSONResponse, Response, PlainTextResponse
 
 from x402.http import HTTPFacilitatorClient, PaymentOption, FacilitatorConfig
@@ -71,9 +72,9 @@ def paid(price: str, description: str, out_example: dict, input_schema=None, pat
         "info": {
             "name": "AtlasData",
             "operator": "direct (not a gateway or reseller)",
-            "docs": "https://atlasdata.shares.zrok.io/llms.txt",
-            "catalog": "https://atlasdata.shares.zrok.io/.well-known/x402",
-            "freePreflight": "https://atlasdata.shares.zrok.io/api/x402/preflight",
+            "docs": "https://x402atlas.xyz/llms.txt",
+            "catalog": "https://x402atlas.xyz/.well-known/x402",
+            "freePreflight": "https://x402atlas.xyz/api/x402/preflight",
         }
     }
     ext["payment-identifier"] = {
@@ -113,7 +114,7 @@ def paid(price: str, description: str, out_example: dict, input_schema=None, pat
         mime_type="application/json",
         description=description,
         service_name="AtlasData",
-        icon_url="https://atlasdata.shares.zrok.io/icon.png",
+        icon_url="https://x402atlas.xyz/icon.png",
         tags=list(tags or ["data", "crypto"]) + [t for t in ("agent", "ai") if t not in (tags or [])],
         extensions=ext,
     )
@@ -263,6 +264,11 @@ routes = {
         path_params={"type": "object", "properties": {"txid": {"type": "string"}}, "required": ["txid"]},
         tags=["bitcoin", "transaction", "data"],
     ),
+    "GET /api/btc/whales": paid(
+        "$0.01", "Recent large BTC transactions from the latest confirmed block  -  params: min_btc (default 5), pages (default 5).",
+        {"block": "0000...abc", "whales": [{"txid": "...", "value_btc": 32.1}]},
+        tags=["bitcoin", "whales", "onchain", "data"],
+    ),
     "GET /api/chain/balance/[address]": paid(
         "$0.005", "Onchain native ETH balance + tx count for any address on Base.",
         {"address": "0x...", "wei": "420000000000000000", "eth": "0.42", "tx_count": 17},
@@ -388,7 +394,7 @@ routes = {
     ),
     "GET /api/x402/pulse": paid(
         "$0.02", "Top-20 demand leaderboard (calls + payers), new-today listings, median price, curated club size  -  computed daily from the latest 33k-listing x402 catalog snapshot. No account, no API key.   -  $0.02/call. Support: atlasdataeb5a87@fldubai.com",
-        {"snapshot": "2026-11-16", "total_listings": 33412, "top": [{"resource": "...", "calls_30d": 0}], "new_today": []},
+        {"snapshot": "2026-11-21", "total_listings": 38895, "top": [{"resource": "...", "calls_30d": 0}], "new_today": []},
         tags=["x402", "market-data", "pulse", "leaderboard", "meta"],
     ),
     "POST /api/x402/recommend": paid(
@@ -403,14 +409,71 @@ routes = {
         tags=["x402", "recommend", "discovery", "catalog", "market-data", "meta"],
     ),
     "GET /api/x402/dataset-pro": paid(
-        "$10.00", "Enriched x402 catalog dataset-pro: all 33,412 listings PLUS per-row derived fields  -  elite flag (top-decile by calls), risk_flags (ACTIVE_24H/DORMANT_7D/NEVER_CALLED/ZERO_CALLS/SINGLE_PAYER/UNNAMED/CDP_CURATED), price_usd, calls_per_payer  -  one-shot JSONL. Built for vendor due-diligence and market research. $10/download. Support: atlasdataeb5a87@fldubai.com",
-        {"snapshot": "2026-11-16", "total_listings": 33412, "format": "jsonl", "enriched_fields": ["elite", "risk_flags", "price_usd", "calls_per_payer"]},
+        "$10.00", "Enriched x402 catalog dataset-pro: all 38,895 listings PLUS per-row derived fields  -  elite flag (top-decile by calls), risk_flags (ACTIVE_24H/DORMANT_7D/NEVER_CALLED/ZERO_CALLS/SINGLE_PAYER/UNNAMED/CDP_CURATED), price_usd, calls_per_payer  -  one-shot JSONL. Built for vendor due-diligence and market research. $10/download. Support: atlasdataeb5a87@fldubai.com",
+        {"snapshot": "2026-11-21", "total_listings": 38895, "format": "jsonl", "enriched_fields": ["elite", "risk_flags", "price_usd", "calls_per_payer"]},
         tags=["x402", "dataset", "catalog", "market-data", "meta", "premium", "bulk", "enterprise"],
     ),
     "GET /api/x402/dataset": paid(
-        "$5.00", "Full x402 catalog dataset: all 33,412 listings with 30d calls, unique payers, price, networks, curated flag, last-called  -  one-shot JSONL download (application/x-ndjson, ~15MB). Fields per row: r,d,t,c,p,net,amt,cur,sn,lc. Premium research dataset  -  $5/download. Support: atlasdataeb5a87@fldubai.com",
-        {"snapshot": "2026-11-16", "total_listings": 33412, "format": "jsonl", "fields": ["r", "d", "t", "c", "p", "net", "amt", "cur", "sn", "lc"]},
+        "$5.00", "Full x402 catalog dataset: all 38,895 listings with 30d calls, unique payers, price, networks, curated flag, last-called  -  one-shot JSONL download (application/x-ndjson, ~17MB). Fields per row: r,d,t,c,p,net,amt,cur,sn,lc. Premium research dataset  -  $5/download. Support: atlasdataeb5a87@fldubai.com",
+        {"snapshot": "2026-11-21", "total_listings": 38895, "format": "jsonl", "fields": ["r", "d", "t", "c", "p", "net", "amt", "cur", "sn", "lc"]},
         tags=["x402", "dataset", "catalog", "market-data", "meta", "premium", "bulk"],
+    ),
+    "GET /api/url/read": paid(
+        "$0.005", "?url=<https_url> fetches the page and returns title + meta description + readable main text (boilerplate/nav/scripts stripped, up to 12KB)  -  Firecrawl-lite for agents, no API key needed.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        {"url": "https://example.com", "status": 200, "title": "...", "text": "..."},
+        tags=["web", "scrape", "read", "content", "agent", "utility"],
+    ),
+    "GET /api/x402/top": paid(
+        "$0.05", "Top-N x402 sellers ranked by REAL 30d demand with each entry's percentile and share of total market calls  -  the leaderboard agents and vendors actually buy from. Params: limit (max 200), net, min_calls. No account, no API key.   -  $0.05/call. Support: atlasdataeb5a87@fldubai.com",
+        {"snapshot": "2026-11-21", "total_listings": 38895, "top": [{"rank": 1, "resource": "...", "calls_30d": 0, "market_share_pct": 0.0, "percentile": 100.0}]},
+        input_schema={"type": "object", "properties": {"limit": {"type": "integer"}, "net": {"type": "string"}, "min_calls": {"type": "integer"}}},
+        tags=["x402", "leaderboard", "catalog", "market-data", "meta"],
+    ),
+    "GET /api/x402/gaps": paid(
+        "$0.10", "Underserved x402 niches: per-category supply vs demand analysis  -  which verticals buyers call most but few sellers serve. gap_score = demand share / supply share (>1 = demand exceeds supply). Plus median price and elite rate per category, and the top live listing to benchmark. Vendor/due-diligence intel.   -  $0.10/call. Support: atlasdataeb5a87@fldubai.com",
+        {"snapshot": "2026-11-21", "categories": [{"category": "search", "listings": 0, "demand_share_pct": 0.0, "supply_share_pct": 0.0, "gap_score": 0.0, "elite_rate_pct": 0.0, "median_price_usd": 0.0}]},
+        tags=["x402", "market-data", "analysis", "gaps", "meta", "premium"],
+    ),
+    "GET /x402/ping": paid(
+        "$0.005", "Liveness ping  -  returns ok + server timestamp. Agent health-check / rail-validation endpoint. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        {"status": "ok", "ts": 1700000000},
+        tags=["x402", "utility", "ping", "health"],
+    ),
+    "GET /x402/time": paid(
+        "$0.005", "Current server time  -  unix seconds + ISO-8601 UTC. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        {"unix": 1700000000, "iso": "2026-11-21T00:00:00Z"},
+        tags=["x402", "utility", "time"],
+    ),
+    "GET /x402/uuid": paid(
+        "$0.005", "Fresh random UUID v4. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        {"uuid": "00000000-0000-4000-8000-000000000000"},
+        tags=["x402", "utility", "uuid"],
+    ),
+    "GET /x402/random": paid(
+        "$0.005", "Random values  -  params: n (count, <=100), min, max, hex (bytes -> hex string). No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        {"values": [42], "hex": "ab12"},
+        tags=["x402", "utility", "random"],
+    ),
+    "GET /x402/ip": paid(
+        "$0.005", "Returns the caller's IP as seen by the server. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        {"ip": "203.0.113.1"},
+        tags=["x402", "utility", "ip"],
+    ),
+    "GET /x402/status": paid(
+        "$0.005", "Service status: version, uptime seconds, catalog snapshot, accepted payment networks. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        {"status": "operational", "version": "0.1.0", "uptime_s": 0},
+        tags=["x402", "utility", "status"],
+    ),
+    "GET /x402/network": paid(
+        "$0.005", "Payment networks this service settles on (scheme, asset, payTo per rail). No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        {"networks": [{"network": "eip155:8453", "asset": "USDC", "pay_to": "0x..."}]},
+        tags=["x402", "utility", "network", "payment"],
+    ),
+    "GET /x402/quote": paid(
+        "$0.005", "Payment quote for any endpoint  -  params: path (route), net (preferred rail). Returns exact price, networks, payTo, timeout. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        {"path": "/api/x402/discover", "price": "0.03", "networks": ["eip155:8453"]},
+        input_schema={"type": "object", "properties": {"path": {"type": "string"}, "net": {"type": "string"}}},
+        tags=["x402", "utility", "quote", "payment"],
     ),
 }
 
@@ -422,6 +485,10 @@ for _m in ("GET", "POST"):
             routes[f"{_m} /x402/{_n}"] = routes[_src]
 if "GET /api/x402/pulse" in routes:
     routes["GET /x402/pulse"] = routes["GET /api/x402/pulse"]
+if "GET /api/x402/top" in routes:
+    routes["GET /x402/top"] = routes["GET /api/x402/top"]
+if "GET /api/x402/gaps" in routes:
+    routes["GET /x402/gaps"] = routes["GET /api/x402/gaps"]
 # /search aliases  -  census a675: "search" paths earn med 2 / mean 102.3
 for _m in ("GET", "POST"):
     for _p in ("api/x402", "x402"):
@@ -462,7 +529,7 @@ def _enrich_bazaar(method: str, path: str, rc) -> None:
         "title": desc.split(":")[0].strip()[:90] or path.rsplit("/", 1)[-1],
         "description": desc,
         "naturalLanguageDescription": desc,
-        "provider": {"name": "AtlasData", "url": "https://atlasdata.shares.zrok.io"},
+        "provider": {"name": "AtlasData", "url": "https://x402atlas.xyz"},
         "dataFreshness": {"live_data": "computed on request", "cache_ttl_s": 60},
         "pricingRationale": {
             "price_usdc": price_usdc,
@@ -513,7 +580,7 @@ async def lnurlp(name: str):
         "commentAllowed": 200,
         "tag": "payRequest",
         "metadata": json.dumps([
-            ["text/identifier", f"{name}@atlasdata.shares.zrok.io"],
+            ["text/identifier", f"{name}@x402atlas.xyz"],
             ["text/plain", "AtlasData tips"],
         ]),
     }
@@ -521,7 +588,7 @@ async def lnurlp(name: str):
 
 @app.get("/.well-known/api-catalog", include_in_schema=False)
 async def api_catalog(request: Request):
-    base = str(request.base_url).rstrip("/")
+    base = "https://x402atlas.xyz"
     return {
         "linkset": [{
             "anchor": base,
@@ -542,7 +609,7 @@ async def api_catalog(request: Request):
 
 @app.get("/.well-known/x402")
 async def well_known(request: Request):
-    base = str(request.base_url).rstrip("/")
+    base = "https://x402atlas.xyz"
     return {
         "version": 1,
         "resources": [
@@ -555,6 +622,14 @@ async def well_known(request: Request):
             f"{base}/api/exchange/BTC-ETH", f"{base}/api/x402/discover?min_calls=1000",
             f"{base}/api/x402/dataset", f"{base}/search?q=price", f"{base}/api/x402/pulse",
             f"{base}/api/x402/recommend?need=gas", f"{base}/api/x402/census",
+            f"{base}/api/x402/top", f"{base}/api/x402/gaps",
+            f"{base}/api/x402/dataset-pro", f"{base}/api/market/snapshot",
+            f"{base}/api/feargreed", f"{base}/api/btc/fees", f"{base}/api/btc/mempool",
+            f"{base}/api/dex/token/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            f"{base}/api/token/verdict",
+            f"{base}/x402/ping", f"{base}/x402/time", f"{base}/x402/uuid",
+            f"{base}/x402/random", f"{base}/x402/ip", f"{base}/x402/status",
+            f"{base}/x402/network", f"{base}/x402/quote",
         ],
         "instructions": "Micropaid crypto data + utility API. Pay per call in USDC on Base via x402.",
         "ownership": {
@@ -597,11 +672,23 @@ PAID_META = {
     "/api/btc/fees": ("$0.002", "Bitcoin mempool fee estimates in sat/vB."),
     "/api/btc/mempool": ("$0.002", "tx count, vsize, total fee, next-block estimate  -  Bitcoin mempool stats."),
     "/api/btc/tx/{txid}": ("$0.01", "confirmations, fee, size, outputs  -  Bitcoin transaction details."),
+    "/api/btc/whales": ("$0.01", "Recent large BTC transactions from the latest block  -  params: min_btc, pages."),
     "/api/x402/recommend": ("$0.02", "Best sellers for a described job, ranked by proven demand with risk_flags  -  POST JSON {need, max_price, limit}."),
-    "/api/x402/dataset": ("$5.00", "Full x402 catalog dataset: all 33,412 listings with 30d calls/payers as NDJSON  -  one bulk download."),
+    "/api/x402/dataset": ("$5.00", "Full x402 catalog dataset: all 38,895 listings with 30d calls/payers as NDJSON  -  one bulk download."),
     "/api/x402/pulse": ("$0.02", "Daily x402 market leaderboard + median pricing stats from the live catalog."),
+    "/api/x402/top": ("$0.05", "Top-N x402 sellers by real 30d calls with percentile + market share. Params: limit, net, min_calls."),
+    "/api/x402/gaps": ("$0.10", "Underserved x402 niches: per-category supply vs demand gap analysis (gap_score = demand/supply share)."),
+    "/x402/ping": ("$0.005", "Liveness ping: ok + server timestamp. Agent health-check endpoint."),
+    "/x402/time": ("$0.005", "Current server time (unix + ISO-8601 UTC)."),
+    "/x402/uuid": ("$0.005", "Fresh random UUID v4."),
+    "/x402/random": ("$0.005", "Random values. Params: n, min, max, hex."),
+    "/x402/ip": ("$0.005", "Caller's IP as seen by the server."),
+    "/x402/status": ("$0.005", "Service status: version, uptime, snapshot, accepted networks."),
+    "/x402/network": ("$0.005", "Payment networks/rails this service settles on."),
+    "/x402/quote": ("$0.005", "Payment quote for any endpoint. Params: path, net."),
     "/search": ("$0.03", "Alias of /api/x402/discover  -  search all x402 sellers by keyword with demand stats."),
     "/api/x402/search": ("$0.03", "Alias of /api/x402/discover  -  search all x402 sellers by keyword with demand stats."),
+    "/api/url/read": ("$0.005", "Fetch a URL and return title + meta description + readable main text (boilerplate stripped, up to 12KB). Params: url."),
 }
 
 
@@ -637,12 +724,23 @@ app.openapi = custom_openapi
 @app.get("/icon.png", include_in_schema=False)
 async def icon_png():
     from fastapi.responses import FileResponse
-    return FileResponse("/home/ubuntu/experiment/api/icon.png", media_type="image/png")
+    return FileResponse(os.path.join(os.path.dirname(__file__), "icon.png"), media_type="image/png")
+
+
+@app.get("/blog/{slug}", include_in_schema=False)
+async def blog_post(slug: str):
+    import re as _re
+    from fastapi.responses import FileResponse
+    s = _re.sub(r"[^a-z0-9_-]", "", slug, flags=_re.I)
+    p = os.path.join(os.path.dirname(__file__), "blog", s + ".html")
+    if not os.path.exists(p):
+        return JSONResponse({"error": "no such post"}, status_code=404)
+    return FileResponse(p, media_type="text/html; charset=utf-8")
 
 
 @app.get("/llms.txt")
 async def llms_txt(request: Request):
-    base = str(request.base_url).rstrip("/")
+    base = "https://x402atlas.xyz"
     lines = [
         "# AtlasData",
         "",
@@ -681,7 +779,7 @@ async def llms_txt(request: Request):
         "",
         "Free sample (no payment):",
         f"- {base}/free/price/[symbol]: free spot price, same data as the paid routes",
-        f"- {base}/api/x402/census: free x402 market census teaser (33,412 listings stats); full dataset $5 at /api/x402/dataset",
+        f"- {base}/api/x402/census: free x402 market census teaser (38,895 listings stats); full dataset $5 at /api/x402/dataset",
         "",
         "## ZapAds registry (L402 proxy)",
         "",
@@ -694,6 +792,18 @@ async def llms_txt(request: Request):
         "- Registry listing: https://www.zapads.ai/api/v1/services (provider AtlasData)",
     ]
     return Response("\n".join(lines) + "\n", media_type="text/plain")
+
+
+@app.get("/census", include_in_schema=False)
+async def census_alias():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse("/api/x402/census", status_code=307)
+
+
+@app.get("/reports", include_in_schema=False)
+async def reports_alias():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse("/api/report-preview/x402-market-census-expanded", status_code=307)
 
 
 @app.get("/")
@@ -904,6 +1014,26 @@ async def report(slug: str):
     return {"slug": slug, "content": REPORTS[slug]}
 
 
+@app.get("/api/report-preview/{slug}")
+async def report_preview(slug: str):
+    # Free excerpt — first ~40 lines of the report. Full version is paid via
+    # x402 (/api/report/{slug}) or L402 (/l402/report/{slug}).
+    if slug not in REPORTS:
+        return JSONResponse({"error": "no such report", "available": list(REPORTS)}, status_code=404)
+    lines = REPORTS[slug].splitlines()
+    excerpt = "\n".join(lines[:40])
+    return {
+        "slug": slug,
+        "preview": excerpt,
+        "preview_lines": min(40, len(lines)),
+        "total_lines": len(lines),
+        "full_report": {
+            "x402": f"/api/report/{slug} ($0.50 USDC on Base)",
+            "l402": f"/l402/report/{slug} (200 sats over Lightning)",
+        },
+    }
+
+
 @app.get("/api/qr")
 async def qr(text: str):
     import qrcode
@@ -943,7 +1073,8 @@ def _or_key():
     return ""
 
 
-OR_MODELS = ("openrouter/free", "baidu/ernie-5.5-flash-preview:free",
+OR_MODELS = ("nvidia/nemotron-3-ultra-550b-a55b:free", "openrouter/free",
+             "baidu/ernie-5.5-flash-preview:free",
              "nvidia/nemotron-3-nano-30b-a3b:free",
              "meta-llama/llama-3.3-70b-instruct:free")
 
@@ -1137,14 +1268,51 @@ async def sol_slot():
     return {"slot": res.get("absoluteSlot"), "epoch": res.get("epoch"), "block_time": bt.json().get("result"), "ts": int(time.time())}
 
 
+@app.get("/api/url/read")
+async def url_read(url: str):
+    from urllib.parse import urlparse
+    p = urlparse(url)
+    if p.scheme not in ("http", "https") or not p.netloc:
+        return JSONResponse({"error": "invalid url (need http(s)://host)"}, status_code=400)
+    if len(url) > 2048:
+        return JSONResponse({"error": "url too long"}, status_code=400)
+    try:
+        r = await _client.get(url, headers={"User-Agent": "Mozilla/5.0 (compatible; AtlasData/1.0)"}, follow_redirects=True)
+    except Exception as e:
+        return JSONResponse({"error": f"fetch failed: {type(e).__name__}"}, status_code=502)
+    if r.status_code != 200:
+        return JSONResponse({"error": f"upstream status {r.status_code}", "status": r.status_code}, status_code=502)
+    ct = r.headers.get("content-type", "")
+    if "text/html" not in ct and "application/xhtml" not in ct and ct:
+        return JSONResponse({"error": f"non-HTML content-type {ct.split(';')[0]}", "status": r.status_code}, status_code=422)
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(r.text[:1_500_000], "html.parser")
+    for tag in soup(["script", "style", "noscript", "iframe", "svg", "nav", "footer", "header", "form", "aside", "template"]):
+        tag.decompose()
+    title = (soup.title.string.strip() if soup.title and soup.title.string else "") or None
+    desc = None
+    md = soup.find("meta", attrs={"name": "description"}) or soup.find("meta", attrs={"property": "og:description"})
+    if md and md.get("content"):
+        desc = md["content"].strip()[:500]
+    main = soup.find("main") or soup.find("article") or soup.body or soup
+    text = main.get_text("\n", strip=True)
+    import re as _re
+    text = _re.sub(r"\n{3,}", "\n\n", text)[:12288]
+    return {"url": str(r.url), "status": r.status_code, "title": title,
+            "description": desc, "text": text, "chars": len(text), "ts": int(time.time())}
+
+
 # ================= L402 (Lightning-paid endpoints) =================
 import os as _os, base64 as _b64, secrets as _sec
 
 _LNBITS = "https://demo.lnbits.com"
-_LK = {l.split("=",1)[0]: l.split("=",1)[1].strip() for l in open(_os.path.expanduser("~/.cdp/lnbits.env")) if "=" in l}
+try:
+    _LK = {l.split("=",1)[0]: l.split("=",1)[1].strip() for l in open(_os.path.expanduser("~/.cdp/lnbits.env")) if "=" in l}
+except OSError:
+    _LK = {}
 L402_PRICES = {  # sats per endpoint
     "/l402/price/": 10, "/l402/btc/tip": 10, "/l402/gas": 10, "/l402/sol/slot": 10,
-    "/l402/btc/fees": 10,
+    "/l402/btc/fees": 10, "/l402/btc/whales": 10,
     "/l402/report/": 200,
 }
 
@@ -1197,7 +1365,7 @@ async def l402_gate(request: Request, call_next):
                 return await call_next(request)
         return JSONResponse({"error": "invalid or unpaid L402 credentials"}, status_code=402)
     inv = await _lnbits_invoice(sats, f"AtlasData L402 {path}")
-    m = Macaroon(location="atlasdata.shares.zrok.io",
+    m = Macaroon(location="x402atlas.xyz",
                  identifier=f"atlasdata-{_sec.token_hex(8)}",
                  key=_LK["L402_MACAROON_KEY"])
     m.add_first_party_caveat(f"payment_hash={inv['payment_hash']}")
@@ -1398,7 +1566,7 @@ def _hal_payload():
         "data": {
             "note": "Real-time snapshot assembled per call. Symbols covered: btc, eth, sol, xmr + gas + mempool fees.",
         },
-        "source": "atlasdata.shares.zrok.io",
+        "source": "x402atlas.xyz",
         "ts": int(time.time()),
     }
 
@@ -1856,7 +2024,7 @@ async def x402_discover(q: str = "", tag: str = "", net: str = "", min_calls: in
              "tags": r["t"], "last_called_at": r.get("lc") or None, "risk_flags": _flags(r)}
             for r in hits[:limit]
         ],
-        "snapshot": "2026-11-16 CDP Bazaar catalog (33,412 listings)",
+        "snapshot": "2026-11-21 CDP Bazaar catalog (38,895 listings)",
         "risk_flag_legend": {
             "ACTIVE_24H": "called within the last 24h (live cohort: 4.5% of listings, 81% of demand)",
             "DORMANT_7D": "no call in >7 days",
@@ -1905,7 +2073,7 @@ async def x402_pulse():
     top = sorted(rows, key=lambda r: (r["c"], r["p"]), reverse=True)[:20]
     nets = Counter(r["net"] for r in rows)
     return {
-        "snapshot": "2026-11-16 CDP Bazaar catalog",
+        "snapshot": "2026-11-21 CDP Bazaar catalog",
         "total_listings": len(rows),
         "total_calls_30d": sum(r["c"] for r in rows),
         "total_payers_30d": sum(r["p"] for r in rows),
@@ -1976,7 +2144,7 @@ async def _recommend(need: str, net: str, limit: int, max_price: float):
             for s, r, price, flags in scored[:limit]
         ],
         "candidates": len(scored),
-        "snapshot": "2026-11-16 CDP Bazaar catalog (33,412 listings)",
+        "snapshot": "2026-11-21 CDP Bazaar catalog (38,895 listings)",
     }
 
 
@@ -2030,6 +2198,212 @@ async def x402_search_short_post_alias(request: Request):
     return await x402_discover_post(request)
 
 
+_GAP_CATEGORIES = [
+    ("llm-chat", ("chat", "completions", "llm", "openai", "anthropic", "gpt", "claude")),
+    ("search", ("search", "exa", "tavily", "query")),
+    ("crypto-price", ("price", "ticker", "quote", "market", "exchange", "token", "coin", "dex", "swap")),
+    ("chain-rpc", ("rpc", "chain", "block", "wallet", "tx", "transaction", "onchain", "web3")),
+    ("image-gen", ("image", "img", "photo", "avatar", "art", "draw", "generate-image")),
+    ("video", ("video", "movie", "clip", "render", "stream")),
+    ("weather", ("weather", "forecast", "climate")),
+    ("scrape-read", ("scrape", "crawl", "fetch", "read", "extract", "parse", "html", "screenshot")),
+    ("email", ("email", "mail", "smtp", "inbox")),
+    ("social", ("twitter", "x-post", "social", "reddit", "mastodon", "discord")),
+    ("dns-domain", ("dns", "domain", "whois")),
+    ("qr", ("qr", "qrcode", "barcode")),
+    ("translate", ("translate", "lang", "i18n")),
+    ("tts-audio", ("tts", "speech", "audio", "voice", "sound", "music")),
+    ("location", ("geo", "map", "location", "ip", "country")),
+    ("storage", ("upload", "file", "storage", "s3", "bucket", "host")),
+    ("verify-kyc", ("verify", "kyc", "captcha", "identity", "honeypot", "goplus")),
+    ("analytics", ("analytic", "metrics", "stats", "dashboard", "report", "census")),
+]
+
+
+def _gap_category(row):
+    hay = (row["r"] + " " + row["d"] + " " + row["sn"] + " " + " ".join(row["t"])).lower()
+    for name, kws in _GAP_CATEGORIES:
+        for kw in kws:
+            if kw in hay:
+                return name
+    return "other"
+
+
+@app.get("/api/x402/top")
+async def x402_top(limit: int = 50, net: str = "", min_calls: int = 0):
+    """Top-N x402 sellers by real 30d calls, with percentile and market share."""
+    net = _clip(net, 60).lower()
+    limit = max(1, min(int(limit or 50), 200))
+    rows = _discover_rows()
+    total_calls = sum(r["c"] for r in rows) or 1
+    n_rows = len(rows) or 1
+    hits = [r for r in rows
+            if (not min_calls or r["c"] >= min_calls) and (not net or net in r["net"].lower())]
+    hits.sort(key=lambda r: (r["c"], r["p"]), reverse=True)
+    return {
+        "snapshot": "2026-11-21 CDP Bazaar catalog (38,895 listings)",
+        "total_listings": len(rows),
+        "total_calls_30d": total_calls,
+        "top": [
+            {"rank": i + 1, "resource": r["r"], "service": r["sn"],
+             "calls_30d": r["c"], "payers_30d": r["p"], "price": r["amt"],
+             "network": r["net"], "curated": r["cur"],
+             "market_share_pct": round(100.0 * r["c"] / total_calls, 3),
+             "percentile": round(100.0 * (n_rows - i - 1) / n_rows, 2)}
+            for i, r in enumerate(hits[:limit])
+        ],
+    }
+
+
+@app.get("/api/x402/gaps")
+async def x402_gaps():
+    """Supply-vs-demand gap analysis across x402 categories."""
+    import statistics as _st
+    rows = _discover_rows()
+    total_calls = sum(r["c"] for r in rows) or 1
+    n_rows = len(rows) or 1
+    calls_sorted = sorted((r["c"] for r in rows), reverse=True)
+    elite_cut = calls_sorted[max(0, int(n_rows * 0.10) - 1)] if rows else 0
+    buckets = {}
+    for r in rows:
+        cat = _gap_category(r)
+        b = buckets.setdefault(cat, {"listings": 0, "calls": 0, "payers": 0, "elite": 0, "prices": [], "top": None})
+        b["listings"] += 1
+        b["calls"] += r["c"]
+        b["payers"] += r["p"]
+        if r["c"] >= elite_cut and elite_cut:
+            b["elite"] += 1
+        try:
+            b["prices"].append(int(r["amt"]) / 1e6)
+        except Exception:
+            pass
+        if b["top"] is None or r["c"] > b["top"]["c"]:
+            b["top"] = r
+    cats = []
+    for name, b in buckets.items():
+        supply = 100.0 * b["listings"] / n_rows
+        demand = 100.0 * b["calls"] / total_calls
+        t = b["top"]
+        cats.append({
+            "category": name,
+            "listings": b["listings"],
+            "supply_share_pct": round(supply, 2),
+            "calls_30d": b["calls"],
+            "demand_share_pct": round(demand, 2),
+            "gap_score": round(demand / supply, 2) if supply else 0.0,
+            "elite_rate_pct": round(100.0 * b["elite"] / b["listings"], 2) if b["listings"] else 0.0,
+            "median_price_usd": round(_st.median(b["prices"]), 4) if b["prices"] else None,
+            "benchmark": {"resource": t["r"], "calls_30d": t["c"]} if t else None,
+        })
+    cats.sort(key=lambda c: c["gap_score"], reverse=True)
+    return {
+        "snapshot": "2026-11-21 CDP Bazaar catalog (38,895 listings)",
+        "total_listings": len(rows),
+        "total_calls_30d": total_calls,
+        "elite_cutoff_calls_30d": elite_cut,
+        "gap_score_note": "demand_share / supply_share; >1 means buyer calls outpace seller supply",
+        "categories": cats,
+    }
+
+
+@app.get("/x402/top")
+async def x402_top_alias(limit: int = 50, net: str = "", min_calls: int = 0):
+    return await x402_top(limit, net, min_calls)
+
+
+@app.get("/x402/gaps")
+async def x402_gaps_alias():
+    return await x402_gaps()
+
+
+# --- api-xpay-style utility suite (fleet health-check pattern, ~46k calls/mo observed) ---
+_UTIL_T0 = time.time()
+
+
+@app.get("/x402/ping")
+async def util_ping():
+    return {"status": "ok", "ts": int(time.time())}
+
+
+@app.get("/x402/time")
+async def util_time():
+    import datetime as _dt
+    now = _dt.datetime.utcnow()
+    return {"unix": int(time.time()), "iso": now.strftime("%Y-%m-%dT%H:%M:%SZ")}
+
+
+@app.get("/x402/uuid")
+async def util_uuid():
+    import uuid as _u
+    return {"uuid": str(_u.uuid4())}
+
+
+@app.get("/x402/random")
+async def util_random(n: int = 1, min: int = Query(0), max: int = Query(1000000), hex: int = Query(0)):
+    import secrets as _s
+    n = builtins.max(1, builtins.min(int(n or 1), 100))
+    out = {"values": [_s.randbelow(builtins.max(1, int(max) - int(min) + 1)) + int(min) for _ in range(n)]}
+    if hex:
+        out["hex"] = _s.token_hex(builtins.max(1, builtins.min(int(hex), 64)))
+    return out
+
+
+@app.get("/x402/ip")
+async def util_ip(request: Request):
+    fwd = request.headers.get("x-forwarded-for", "")
+    ip = fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "")
+    return {"ip": ip}
+
+
+@app.get("/x402/status")
+async def util_status():
+    return {
+        "status": "operational",
+        "version": "0.1.0",
+        "uptime_s": int(time.time() - _UTIL_T0),
+        "snapshot": "2026-11-21 CDP Bazaar catalog (38,895 listings)",
+        "paid_endpoints": len(routes),
+    }
+
+
+@app.get("/x402/network")
+async def util_network():
+    return {
+        "scheme": "exact",
+        "networks": [
+            {"network": NETWORK, "asset": "USDC", "pay_to": PAY_TO},
+            {"network": POLY_NETWORK, "asset": "USDC", "pay_to": PAY_TO},
+            {"network": AVAX_NETWORK, "asset": "USDC", "pay_to": PAY_TO},
+            {"network": ARB_NETWORK, "asset": "USDC", "pay_to": PAY_TO},
+            {"network": SEI_NETWORK, "asset": "USDC", "pay_to": PAY_TO},
+            {"network": XLAYER_NETWORK, "asset": "USDC", "pay_to": PAY_TO},
+            {"network": SOL_NETWORK, "asset": "USDC", "pay_to": SOL_PAY_TO},
+        ],
+        "facilitator": "PayAI",
+        "settlement": "~2s on-chain",
+    }
+
+
+@app.get("/x402/quote")
+async def util_quote(path: str = "", net: str = ""):
+    path = _clip(path, 200)
+    net = _clip(net, 60).lower()
+    nets = [NETWORK, POLY_NETWORK, AVAX_NETWORK, ARB_NETWORK, SEI_NETWORK, XLAYER_NETWORK, SOL_NETWORK]
+    if net:
+        nets = [n for n in nets if net in n.lower()] or nets
+    price = None
+    for rname, rc in routes.items():
+        p = rname.split(" ", 1)[1]
+        if p == path or (path and path in p):
+            try:
+                price = str(rc.accepts[0].price)
+            except Exception:
+                pass
+            break
+    return {"path": path or "/api/x402/discover", "price": price or "see /openapi.json",
+            "scheme": "exact", "networks": nets, "pay_to": PAY_TO, "max_timeout_seconds": 3600}
+
+
 @app.get("/x402/pulse")
 async def x402_pulse_alias():
     return await x402_pulse()
@@ -2079,7 +2453,7 @@ async def skill_md():
 
 
 LLMS_TXT = """# AtlasData API
-> Pay-per-call data + utility API for agents (x402/L402). Base: https://atlasdata.shares.zrok.io
+> Pay-per-call data + utility API for agents (x402/L402). Base: https://x402atlas.xyz
 
 ## Paid meta endpoints
 - GET /api/x402/discover?q=&tag=&net=&min_calls=&limit=  -  ranked x402 catalog search by REAL 30d demand (33k listings, calls+payers)
@@ -2165,8 +2539,8 @@ async def x402_dataset_pro():
         content=body,
         media_type="application/x-ndjson",
         headers={
-            "Content-Disposition": 'attachment; filename="x402-catalog-pro-2026-11-16.jsonl"',
-            "X-Snapshot": "2026-11-16",
+            "Content-Disposition": 'attachment; filename="x402-catalog-pro-2026-11-21.jsonl"',
+            "X-Snapshot": "2026-11-21",
             "X-Total-Listings": str(len(out)),
         },
     )
@@ -2182,9 +2556,9 @@ async def x402_dataset():
         content=body,
         media_type="application/x-ndjson",
         headers={
-            "Content-Disposition": 'attachment; filename="x402-catalog-2026-11-16.jsonl"',
-            "X-Snapshot": "2026-11-16",
-            "X-Total-Listings": "33412",
+            "Content-Disposition": 'attachment; filename="x402-catalog-2026-11-21.jsonl"',
+            "X-Snapshot": "2026-11-21",
+            "X-Total-Listings": "38895",
         },
     )
 
@@ -2192,23 +2566,30 @@ async def x402_dataset():
 @app.get("/api/x402/census")
 async def x402_census():
     """Free teaser: headline census stats from the x402 catalog (full data at /api/x402/dataset)."""
-    import pandas as pd
-    df = pd.read_json(os.path.join(os.path.dirname(__file__), "data", "x402_discover.jsonl"), lines=True)
-    df["c"] = pd.to_numeric(df.c, errors="coerce")
-    df["p"] = pd.to_numeric(df.p, errors="coerce")
-    df["amt"] = pd.to_numeric(df.amt, errors="coerce")
-    called = df[df.c > 0]
-    gmv = float((called[called.amt <= 1e9].c * called[called.amt <= 1e9].amt / 1e6).sum())
+    import json as _json, statistics as _st
+    rows = []
+    with open(os.path.join(os.path.dirname(__file__), "data", "x402_discover.jsonl")) as _f:
+        for _l in _f:
+            try:
+                rows.append(_json.loads(_l))
+            except Exception:
+                pass
+    cs = [float(r.get("c") or 0) for r in rows]
+    ps = [float(r.get("p") or 0) for r in rows]
+    called = [(c, float(r.get("amt") or 0)) for r, c in zip(rows, cs) if c > 0]
+    gmv = sum(c * a / 1e6 for c, a in called if a <= 1e9)
+    top_calls = sum(sorted((c for c, _ in called), reverse=True)[:max(1, int(len(called) * 0.01))])
+    total_calls = sum(cs) or 1
     return {
-        "snapshot": "2026-11-16",
-        "total_listings": int(len(df)),
-        "called_30d": int(len(called)),
-        "live_share_pct": round(100 * len(called) / len(df), 2),
-        "median_calls_per_listing": float(df.c.median()),
-        "median_payers_per_listing": float(df.p.median()),
+        "snapshot": "2026-11-21",
+        "total_listings": len(rows),
+        "called_30d": len(called),
+        "live_share_pct": round(100 * len(called) / len(rows), 2),
+        "median_calls_per_listing": _st.median(cs),
+        "median_payers_per_listing": _st.median(ps),
         "est_30d_gmv_usd": round(gmv, 0),
-        "top_1pct_call_share_pct": round(100 * called.nlargest(max(1, int(len(called) * 0.01)), "c").c.sum() / called.c.sum(), 1),
-        "full_dataset": "GET /api/x402/dataset  -  $5 one-time, all 33,412 rows as NDJSON",
+        "top_1pct_call_share_pct": round(100 * top_calls / total_calls, 1),
+        "full_dataset": "GET /api/x402/dataset  -  $5 one-time, all 38,895 rows as NDJSON",
         "search": "GET /api/x402/discover?q=  -  $0.03, ranked by proven demand",
     }
 
@@ -2327,3 +2708,72 @@ async def chain_events(address: str, topic0: str = "",
                       "tx": lg.get("transactionHash"), "index": lg.get("logIndex")}
                      for lg in logs[:200]],
             "count": len(logs[:200]), "truncated": len(logs) > 200, "chain": "base"}
+
+
+@app.get("/api/btc/whales")
+async def btc_whales(min_btc: float = 5.0, pages: int = 5):
+    """Recent large BTC transactions from the latest confirmed block."""
+    pages = max(1, min(pages, 8))
+    tip = await _client.get("https://mempool.space/api/blocks/tip/hash")
+    block_hash = tip.text.strip()
+    out = []
+    for i in range(pages):
+        try:
+            r = await _client.get(f"https://mempool.space/api/block/{block_hash}/txs/{i*25}")
+            txs = r.json()
+        except Exception:
+            break
+        for tx in txs:
+            total = sum(v.get("value", 0) for v in tx.get("vout", []))
+            btc = total / 1e8
+            if btc >= min_btc:
+                out.append({"txid": tx.get("txid"), "value_btc": round(btc, 4),
+                            "size_vbytes": tx.get("size"),
+                            "fee_sats": tx.get("fee"),
+                            "outputs": len(tx.get("vout", []))})
+    out.sort(key=lambda x: -x["value_btc"])
+    return {"block": block_hash, "min_btc": min_btc, "whales": out[:50],
+            "count": len(out), "ts": int(time.time())}
+
+
+# --- LF-gateway upstream surface -------------------------------------------------
+# LightningFaucet's paid gateway must see real data from upstream_url (it rejects
+# upstreams that answer 402). Mounted sub-app serves the same /api/* handlers
+# WITHOUT the x402 middleware (parent middlewares don't re-gate: scope path under
+# /gw never matches the paid route map), protected by a shared-secret header so
+# only the gateway (which sends X-Atlas-Gateway-Key) gets free reads.
+def _gw_key():
+    k = os.environ.get("ATLAS_GW_KEY")
+    if k:
+        return k
+    try:
+        for line in open(os.path.expanduser("~/.cdp/env")):
+            if line.startswith("ATLAS_GW_KEY="):
+                return line.strip().split("=", 1)[1]
+    except OSError:
+        pass
+    return ""
+
+
+gw_app = FastAPI(title="AtlasData gateway upstream")
+
+
+@gw_app.middleware("http")
+async def _gw_auth(request: Request, call_next):
+    k = _gw_key()
+    import hmac
+    # header first; ?gk= fallback because the Render/zrok proxy chain drops
+    # non-essential headers. URL-embedded key only guards free reads.
+    ok = (hmac.compare_digest(request.headers.get("x-atlas-gateway-key", ""), k)
+          or hmac.compare_digest(request.query_params.get("gk", ""), k)) if k else False
+    if not ok:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return await call_next(request)
+
+
+from fastapi.routing import APIRoute
+for _r in app.routes:
+    if isinstance(_r, APIRoute) and _r.path.startswith("/api/") and "/gw" not in _r.path:
+        gw_app.add_api_route(_r.path, _r.endpoint, methods=list(_r.methods))
+
+app.mount("/gw", gw_app)
