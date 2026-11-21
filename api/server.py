@@ -818,6 +818,11 @@ async def index():
     }
 
 
+@app.get("/healthz", include_in_schema=False)
+async def healthz():
+    return {"ok": True}
+
+
 @app.post("/collect")
 async def collect(request: Request):
     import base64, time
