@@ -363,7 +363,7 @@ routes = {
         tags=["chain", "base", "balance", "primitive"],
     ),
     "GET /api/chain/estimate-gas": paid(
-        "$0.005", "Gas estimate for a call on Base (eth_estimateGas) + current gas price. Params: to, data (optional), from (optional), value (optional hex wei). No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.001", "Gas estimate for a call on Base (eth_estimateGas) + current gas price. Params: to, data (optional), from (optional), value (optional hex wei). No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"to": "0x...", "gas_estimate": 21000, "gas_price_gwei": "0.02"},
         input_schema={"type": "object", "properties": {"to": {"type": "string"}, "data": {"type": "string"}, "from": {"type": "string"}, "value": {"type": "string"}}, "required": ["to"]},
         tags=["chain", "base", "gas", "primitive"],
@@ -419,7 +419,7 @@ routes = {
         tags=["x402", "dataset", "catalog", "market-data", "meta", "premium", "bulk"],
     ),
     "GET /api/url/read": paid(
-        "$0.005", "?url=<https_url> fetches the page and returns title + meta description + readable main text (boilerplate/nav/scripts stripped, up to 12KB)  -  Firecrawl-lite for agents, no API key needed.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.001", "?url=<https_url> fetches the page and returns title + meta description + readable main text (boilerplate/nav/scripts stripped, up to 12KB)  -  Firecrawl-lite for agents, no API key needed.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"url": "https://example.com", "status": 200, "title": "...", "text": "..."},
         tags=["web", "scrape", "read", "content", "agent", "utility"],
     ),
