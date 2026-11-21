@@ -2768,3 +2768,7 @@ for _r in app.routes:
         gw_app.add_api_route(_r.path, _r.endpoint, methods=list(_r.methods))
 
 app.mount("/gw", gw_app)
+
+@app.get("/healthz", include_in_schema=False)
+async def healthz():
+    return {"ok": True}
