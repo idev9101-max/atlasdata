@@ -893,12 +893,36 @@ async def crypto_prices(ids: str = "bitcoin"):
            "&include_market_cap=true&include_24hr_vol=true")
     r = await _client.get(url, timeout=20,
                           headers={"User-Agent": "x402atlas-prices/1.0"})
-    if r.status_code != 200:
+    d = r.json() if r.status_code == 200 else None
+    if not d:
+        # CoinGecko blocks some datacenter IPs - fall back to CoinPaprika.
+        d = {}
+        for cid in ids.split(","):
+            try:
+                sr = await _client.get(
+                    f"https://api.coinpaprika.com/v1/search/?q={cid}&c=currencies&limit=1",
+                    timeout=15, headers={"User-Agent": "x402atlas-prices/1.0"})
+                curs = (sr.json().get("currencies") or []) if sr.status_code == 200 else []
+                if not curs:
+                    continue
+                pid = curs[0]["id"]
+                tr = await _client.get(f"https://api.coinpaprika.com/v1/tickers/{pid}",
+                    timeout=15, headers={"User-Agent": "x402atlas-prices/1.0"})
+                if tr.status_code != 200:
+                    continue
+                q = (tr.json().get("quotes") or {}).get("USD") or {}
+                d[cid] = {
+                    "usd": q.get("price"),
+                    "usd_24h_change": q.get("percent_change_24h"),
+                    "usd_market_cap": q.get("market_cap"),
+                    "usd_24h_vol": q.get("volume_24h"),
+                }
+            except Exception:
+                continue
+        if d:
+            return {"prices": d, "upstream": "coinpaprika", "ts": int(time.time())}
         return JSONResponse({"error": "upstream prices failed", "status": r.status_code},
                             status_code=502)
-    d = r.json()
-    if not d:
-        return JSONResponse({"error": f"unknown ids {ids}"}, status_code=404)
     return {"prices": d, "ts": int(time.time())}
 
 
