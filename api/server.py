@@ -227,7 +227,7 @@ routes = {
         tags=["llm", "ai", "inference", "gen", "agent"],
     ),
     "POST /api/v1/chat/completions": paid(
-        "$0.005", "OpenAI-compatible chat completions  -  POST {model, messages[], max_tokens?, temperature?, seed?}; returns a standard chat.completion object {id, choices[0].message.content, usage}. Drop-in shape for agent stacks that already speak the OpenAI protocol. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.005", "OpenAI-compatible chat completions  -  POST {model, messages[], max_tokens?, temperature?, seed?}; returns a standard chat.completion object {id, choices[0].message.content, usage}. Drop-in shape for agent stacks that already speak the OpenAI protocol. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"id": "chatcmpl-x", "object": "chat.completion", "choices": [{"message": {"role": "assistant", "content": "..."}}]},
         input_schema={"type": "object", "properties": {"model": {"type": "string"}, "messages": {"type": "array"}, "max_tokens": {"type": "integer"}, "temperature": {"type": "number"}, "seed": {"type": "integer"}}, "required": ["messages"]},
         tags=["llm", "ai", "inference", "chat", "completions", "openai", "agent"],
@@ -333,7 +333,7 @@ routes = {
         tags=["chain", "base", "primitive"],
     ),
     "GET /api/chain/receipt/[hash]": paid(
-        "$0.005", "Transaction receipt on Base  -  status, gas used, logs count, block, contract address if a deploy. Params: tx hash. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.005", "Transaction receipt on Base  -  status, gas used, logs count, block, contract address if a deploy. Params: tx hash. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"hash": "0x...", "status": 1, "gas_used": 21000, "block": 37000000},
         path_params={"type": "object", "properties": {"hash": {"type": "string"}}, "required": ["hash"]},
         tags=["chain", "base", "receipt", "primitive"],
@@ -345,25 +345,25 @@ routes = {
         tags=["chain", "base", "contract", "primitive"],
     ),
     "GET /api/chain/storage/[address]/[slot]": paid(
-        "$0.005", "Raw storage slot read on Base (eth_getStorageAt)  -  params: contract address, slot index (decimal or 0x). No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.005", "Raw storage slot read on Base (eth_getStorageAt)  -  params: contract address, slot index (decimal or 0x). No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"address": "0x...", "slot": "0x0", "value": "0x..."},
         path_params={"type": "object", "properties": {"address": {"type": "string"}, "slot": {"type": "string"}}, "required": ["address", "slot"]},
         tags=["chain", "base", "storage", "primitive"],
     ),
     "GET /api/chain/allowance/[token]/[owner]/[spender]": paid(
-        "$0.005", "ERC-20 allowance(owner, spender) on Base  -  raw + decimal-adjusted amount. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.005", "ERC-20 allowance(owner, spender) on Base  -  raw + decimal-adjusted amount. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"token": "0x8335...", "owner": "0x...", "spender": "0x...", "raw": "0", "allowance": 0},
         path_params={"type": "object", "properties": {"token": {"type": "string"}, "owner": {"type": "string"}, "spender": {"type": "string"}}, "required": ["token", "owner", "spender"]},
         tags=["chain", "base", "erc20", "allowance", "primitive"],
     ),
     "GET /api/chain/live-balance/[address]": paid(
-        "$0.005", "Live onchain balance snapshot on Base  -  ETH balance, tx nonce, current block, is_contract in one call. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.005", "Live onchain balance snapshot on Base  -  ETH balance, tx nonce, current block, is_contract in one call. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"address": "0x...", "eth": "0.0", "nonce": 0, "block": 37000000},
         path_params={"type": "object", "properties": {"address": {"type": "string"}}, "required": ["address"]},
         tags=["chain", "base", "balance", "primitive"],
     ),
     "GET /api/chain/estimate-gas": paid(
-        "$0.005", "Gas estimate for a call on Base (eth_estimateGas) + current gas price. Params: to, data (optional), from (optional), value (optional hex wei). No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.005", "Gas estimate for a call on Base (eth_estimateGas) + current gas price. Params: to, data (optional), from (optional), value (optional hex wei). No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"to": "0x...", "gas_estimate": 21000, "gas_price_gwei": "0.02"},
         input_schema={"type": "object", "properties": {"to": {"type": "string"}, "data": {"type": "string"}, "from": {"type": "string"}, "value": {"type": "string"}}, "required": ["to"]},
         tags=["chain", "base", "gas", "primitive"],
@@ -419,7 +419,7 @@ routes = {
         tags=["x402", "dataset", "catalog", "market-data", "meta", "premium", "bulk"],
     ),
     "GET /api/url/read": paid(
-        "$0.005", "?url=<https_url> fetches the page and returns title + meta description + readable main text (boilerplate/nav/scripts stripped, up to 12KB)  -  Firecrawl-lite for agents, no API key needed.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.005", "?url=<https_url> fetches the page and returns title + meta description + readable main text (boilerplate/nav/scripts stripped, up to 12KB)  -  Firecrawl-lite for agents, no API key needed.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"url": "https://example.com", "status": 200, "title": "...", "text": "..."},
         tags=["web", "scrape", "read", "content", "agent", "utility"],
     ),
@@ -435,42 +435,42 @@ routes = {
         tags=["x402", "market-data", "analysis", "gaps", "meta", "premium"],
     ),
     "GET /x402/ping": paid(
-        "$0.005", "Liveness ping  -  returns ok + server timestamp. Agent health-check / rail-validation endpoint. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.001", "Liveness ping  -  returns ok + server timestamp. Agent health-check / rail-validation endpoint. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"status": "ok", "ts": 1700000000},
         tags=["x402", "utility", "ping", "health"],
     ),
     "GET /x402/time": paid(
-        "$0.005", "Current server time  -  unix seconds + ISO-8601 UTC. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.001", "Current server time  -  unix seconds + ISO-8601 UTC. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"unix": 1700000000, "iso": "2026-11-21T00:00:00Z"},
         tags=["x402", "utility", "time"],
     ),
     "GET /x402/uuid": paid(
-        "$0.005", "Fresh random UUID v4. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.001", "Fresh random UUID v4. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"uuid": "00000000-0000-4000-8000-000000000000"},
         tags=["x402", "utility", "uuid"],
     ),
     "GET /x402/random": paid(
-        "$0.005", "Random values  -  params: n (count, <=100), min, max, hex (bytes -> hex string). No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.001", "Random values  -  params: n (count, <=100), min, max, hex (bytes -> hex string). No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"values": [42], "hex": "ab12"},
         tags=["x402", "utility", "random"],
     ),
     "GET /x402/ip": paid(
-        "$0.005", "Returns the caller's IP as seen by the server. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.001", "Returns the caller's IP as seen by the server. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"ip": "203.0.113.1"},
         tags=["x402", "utility", "ip"],
     ),
     "GET /x402/status": paid(
-        "$0.005", "Service status: version, uptime seconds, catalog snapshot, accepted payment networks. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.001", "Service status: version, uptime seconds, catalog snapshot, accepted payment networks. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"status": "operational", "version": "0.1.0", "uptime_s": 0},
         tags=["x402", "utility", "status"],
     ),
     "GET /x402/network": paid(
-        "$0.005", "Payment networks this service settles on (scheme, asset, payTo per rail). No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.001", "Payment networks this service settles on (scheme, asset, payTo per rail). No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"networks": [{"network": "eip155:8453", "asset": "USDC", "pay_to": "0x..."}]},
         tags=["x402", "utility", "network", "payment"],
     ),
     "GET /x402/quote": paid(
-        "$0.005", "Payment quote for any endpoint  -  params: path (route), net (preferred rail). Returns exact price, networks, payTo, timeout. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.001", "Payment quote for any endpoint  -  params: path (route), net (preferred rail). Returns exact price, networks, payTo, timeout. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"path": "/api/x402/discover", "price": "0.03", "networks": ["eip155:8453"]},
         input_schema={"type": "object", "properties": {"path": {"type": "string"}, "net": {"type": "string"}}},
         tags=["x402", "utility", "quote", "payment"],
@@ -724,18 +724,7 @@ app.openapi = custom_openapi
 @app.get("/icon.png", include_in_schema=False)
 async def icon_png():
     from fastapi.responses import FileResponse
-    return FileResponse(os.path.join(os.path.dirname(__file__), "icon.png"), media_type="image/png")
-
-
-@app.get("/blog/{slug}", include_in_schema=False)
-async def blog_post(slug: str):
-    import re as _re
-    from fastapi.responses import FileResponse
-    s = _re.sub(r"[^a-z0-9_-]", "", slug, flags=_re.I)
-    p = os.path.join(os.path.dirname(__file__), "blog", s + ".html")
-    if not os.path.exists(p):
-        return JSONResponse({"error": "no such post"}, status_code=404)
-    return FileResponse(p, media_type="text/html; charset=utf-8")
+    return FileResponse("/home/ubuntu/experiment/api/icon.png", media_type="image/png")
 
 
 @app.get("/llms.txt")
@@ -816,11 +805,6 @@ async def index():
         "free_sample": "GET /free/price/[symbol]  -  identical data to the paid /api/price route, no payment required",
         "endpoints": {r: {"price": c.accepts[0].price, "description": c.description} for r, c in routes.items()},
     }
-
-
-@app.get("/healthz", include_in_schema=False)
-async def healthz():
-    return {"ok": True}
 
 
 @app.post("/collect")
@@ -1311,11 +1295,7 @@ async def url_read(url: str):
 import os as _os, base64 as _b64, secrets as _sec
 
 _LNBITS = "https://demo.lnbits.com"
-try:
-    _LK = {l.split("=",1)[0]: l.split("=",1)[1].strip() for l in open(_os.path.expanduser("~/.cdp/lnbits.env")) if "=" in l}
-except OSError:
-    import json as _j
-    _LK = _j.loads(_os.environ.get("LNBITS_ENV_JSON", "{}"))
+_LK = {l.split("=",1)[0]: l.split("=",1)[1].strip() for l in open(_os.path.expanduser("~/.cdp/lnbits.env")) if "=" in l}
 L402_PRICES = {  # sats per endpoint
     "/l402/price/": 10, "/l402/btc/tip": 10, "/l402/gas": 10, "/l402/sol/slot": 10,
     "/l402/btc/fees": 10, "/l402/btc/whales": 10,
