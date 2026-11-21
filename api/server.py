@@ -227,7 +227,7 @@ routes = {
         tags=["llm", "ai", "inference", "gen", "agent"],
     ),
     "POST /api/v1/chat/completions": paid(
-        "$0.005", "OpenAI-compatible chat completions  -  POST {model, messages[], max_tokens?, temperature?, seed?}; returns a standard chat.completion object {id, choices[0].message.content, usage}. Drop-in shape for agent stacks that already speak the OpenAI protocol. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.005", "OpenAI-compatible chat completions  -  POST {model, messages[], max_tokens?, temperature?, seed?}; returns a standard chat.completion object {id, choices[0].message.content, usage}. Drop-in shape for agent stacks that already speak the OpenAI protocol. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"id": "chatcmpl-x", "object": "chat.completion", "choices": [{"message": {"role": "assistant", "content": "..."}}]},
         input_schema={"type": "object", "properties": {"model": {"type": "string"}, "messages": {"type": "array"}, "max_tokens": {"type": "integer"}, "temperature": {"type": "number"}, "seed": {"type": "integer"}}, "required": ["messages"]},
         tags=["llm", "ai", "inference", "chat", "completions", "openai", "agent"],
@@ -333,7 +333,7 @@ routes = {
         tags=["chain", "base", "primitive"],
     ),
     "GET /api/chain/receipt/[hash]": paid(
-        "$0.005", "Transaction receipt on Base  -  status, gas used, logs count, block, contract address if a deploy. Params: tx hash. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.005", "Transaction receipt on Base  -  status, gas used, logs count, block, contract address if a deploy. Params: tx hash. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"hash": "0x...", "status": 1, "gas_used": 21000, "block": 37000000},
         path_params={"type": "object", "properties": {"hash": {"type": "string"}}, "required": ["hash"]},
         tags=["chain", "base", "receipt", "primitive"],
@@ -345,25 +345,25 @@ routes = {
         tags=["chain", "base", "contract", "primitive"],
     ),
     "GET /api/chain/storage/[address]/[slot]": paid(
-        "$0.005", "Raw storage slot read on Base (eth_getStorageAt)  -  params: contract address, slot index (decimal or 0x). No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.005", "Raw storage slot read on Base (eth_getStorageAt)  -  params: contract address, slot index (decimal or 0x). No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"address": "0x...", "slot": "0x0", "value": "0x..."},
         path_params={"type": "object", "properties": {"address": {"type": "string"}, "slot": {"type": "string"}}, "required": ["address", "slot"]},
         tags=["chain", "base", "storage", "primitive"],
     ),
     "GET /api/chain/allowance/[token]/[owner]/[spender]": paid(
-        "$0.005", "ERC-20 allowance(owner, spender) on Base  -  raw + decimal-adjusted amount. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.005", "ERC-20 allowance(owner, spender) on Base  -  raw + decimal-adjusted amount. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"token": "0x8335...", "owner": "0x...", "spender": "0x...", "raw": "0", "allowance": 0},
         path_params={"type": "object", "properties": {"token": {"type": "string"}, "owner": {"type": "string"}, "spender": {"type": "string"}}, "required": ["token", "owner", "spender"]},
         tags=["chain", "base", "erc20", "allowance", "primitive"],
     ),
     "GET /api/chain/live-balance/[address]": paid(
-        "$0.005", "Live onchain balance snapshot on Base  -  ETH balance, tx nonce, current block, is_contract in one call. No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.005", "Live onchain balance snapshot on Base  -  ETH balance, tx nonce, current block, is_contract in one call. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"address": "0x...", "eth": "0.0", "nonce": 0, "block": 37000000},
         path_params={"type": "object", "properties": {"address": {"type": "string"}}, "required": ["address"]},
         tags=["chain", "base", "balance", "primitive"],
     ),
     "GET /api/chain/estimate-gas": paid(
-        "$0.005", "Gas estimate for a call on Base (eth_estimateGas) + current gas price. Params: to, data (optional), from (optional), value (optional hex wei). No account, no API key.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.005", "Gas estimate for a call on Base (eth_estimateGas) + current gas price. Params: to, data (optional), from (optional), value (optional hex wei). No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"to": "0x...", "gas_estimate": 21000, "gas_price_gwei": "0.02"},
         input_schema={"type": "object", "properties": {"to": {"type": "string"}, "data": {"type": "string"}, "from": {"type": "string"}, "value": {"type": "string"}}, "required": ["to"]},
         tags=["chain", "base", "gas", "primitive"],
@@ -419,7 +419,7 @@ routes = {
         tags=["x402", "dataset", "catalog", "market-data", "meta", "premium", "bulk"],
     ),
     "GET /api/url/read": paid(
-        "$0.005", "?url=<https_url> fetches the page and returns title + meta description + readable main text (boilerplate/nav/scripts stripped, up to 12KB)  -  Firecrawl-lite for agents, no API key needed.   -  $0.005/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.005", "?url=<https_url> fetches the page and returns title + meta description + readable main text (boilerplate/nav/scripts stripped, up to 12KB)  -  Firecrawl-lite for agents, no API key needed.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"url": "https://example.com", "status": 200, "title": "...", "text": "..."},
         tags=["web", "scrape", "read", "content", "agent", "utility"],
     ),
@@ -1295,7 +1295,12 @@ async def url_read(url: str):
 import os as _os, base64 as _b64, secrets as _sec
 
 _LNBITS = "https://demo.lnbits.com"
-_LK = {l.split("=",1)[0]: l.split("=",1)[1].strip() for l in open(_os.path.expanduser("~/.cdp/lnbits.env")) if "=" in l}
+try:
+    _LK = {l.split("=",1)[0]: l.split("=",1)[1].strip() for l in open(_os.path.expanduser("~/.cdp/lnbits.env")) if "=" in l}
+except Exception:
+    _LK = {}
+if not _LK.get("LNBITS_ADMINKEY") and _os.environ.get("LNBITS_ADMINKEY"):
+    _LK = {"LNBITS_ADMINKEY": _os.environ["LNBITS_ADMINKEY"], "L402_MACAROON_KEY": _os.environ.get("L402_MACAROON_KEY", "")}
 L402_PRICES = {  # sats per endpoint
     "/l402/price/": 10, "/l402/btc/tip": 10, "/l402/gas": 10, "/l402/sol/slot": 10,
     "/l402/btc/fees": 10, "/l402/btc/whales": 10,
