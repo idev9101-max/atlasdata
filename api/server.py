@@ -556,6 +556,13 @@ if not os.environ.get("FREE_MODE"):
 _client = httpx.AsyncClient(timeout=10.0)
 
 
+def _fnum(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 @app.get("/.well-known/402index-verify.txt", include_in_schema=False)
 async def _idx_verify():
     from fastapi.responses import PlainTextResponse
@@ -1179,10 +1186,35 @@ async def weather_current(lat: float, lon: float):
            "precipitation,weather_code,cloud_cover,pressure_msl,surface_pressure,"
            "wind_speed_10m,wind_direction_10m,wind_gusts_10m"
            "&daily=uv_index_max&timezone=auto&forecast_days=1")
-    r = await _client.get(url, timeout=20)
+    r = await _client.get(url, timeout=20,
+                          headers={"User-Agent": "x402atlas-weather/1.0"})
     if r.status_code != 200:
-        return JSONResponse({"error": "upstream weather failed", "status": r.status_code},
-                            status_code=502)
+        wttr = await _client.get(f"https://wttr.in/{lat},{lon}?format=j1", timeout=20)
+        if wttr.status_code != 200:
+            return JSONResponse({"error": "upstream weather failed", "status": r.status_code},
+                                status_code=502)
+        wc = (wttr.json().get("current_condition") or [{}])[0]
+        wcode = wc.get("weatherCode")
+        try:
+            wcode = int(wcode)
+        except (TypeError, ValueError):
+            pass
+        return {"lat": lat, "lon": lon, "timezone": None,
+                "temperature_c": _fnum(wc.get("temp_C")),
+                "feels_like_c": _fnum(wc.get("FeelsLikeC")),
+                "humidity_pct": _fnum(wc.get("humidity")),
+                "is_day": None,
+                "precipitation_mm": _fnum(wc.get("precipMM")),
+                "weather_code": wcode,
+                "cloud_cover_pct": _fnum(wc.get("cloudcover")),
+                "pressure_msl_hpa": _fnum(wc.get("pressure")),
+                "surface_pressure_hpa": None,
+                "wind_speed_kmh": _fnum(wc.get("windspeedKmph")),
+                "wind_direction_deg": _fnum(wc.get("winddirDegree")),
+                "wind_gusts_kmh": None,
+                "uv_index_max": _fnum(wc.get("uvIndex")),
+                "observed_at": (wc.get("localObsDateTime") or wc.get("observation_time")),
+                "ts": int(time.time()), "upstream": "wttr.in"}
     d = r.json()
     c = d.get("current") or {}
     return {"lat": lat, "lon": lon, "timezone": d.get("timezone"),
