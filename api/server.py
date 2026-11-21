@@ -2772,3 +2772,16 @@ app.mount("/gw", gw_app)
 @app.get("/healthz", include_in_schema=False)
 async def healthz():
     return {"ok": True}
+
+@app.get("/blog/{slug}", include_in_schema=False)
+async def blog_post(slug: str):
+    import os
+    from fastapi.responses import FileResponse
+    slug = slug.replace("/", "").replace("..", "")
+    if not slug.endswith(".html"):
+        slug += ".html"
+    base = os.path.join(os.path.dirname(__file__), "blog", slug)
+    if not os.path.exists(base):
+        from fastapi import HTTPException
+        raise HTTPException(404)
+    return FileResponse(base, media_type="text/html")
