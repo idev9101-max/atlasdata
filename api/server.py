@@ -1309,7 +1309,8 @@ _LNBITS = "https://demo.lnbits.com"
 try:
     _LK = {l.split("=",1)[0]: l.split("=",1)[1].strip() for l in open(_os.path.expanduser("~/.cdp/lnbits.env")) if "=" in l}
 except OSError:
-    _LK = {}
+    import json as _j
+    _LK = _j.loads(_os.environ.get("LNBITS_ENV_JSON", "{}"))
 L402_PRICES = {  # sats per endpoint
     "/l402/price/": 10, "/l402/btc/tip": 10, "/l402/gas": 10, "/l402/sol/slot": 10,
     "/l402/btc/fees": 10, "/l402/btc/whales": 10,
