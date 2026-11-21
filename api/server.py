@@ -220,6 +220,21 @@ routes = {
         path_params={"type": "object", "properties": {"chain": {"type": "string"}, "address": {"type": "string"}}, "required": ["chain", "address"]},
         tags=["price", "crypto", "token", "dex", "market-data"],
     ),
+    "GET /api/crypto/trending": paid(
+        "$0.005", "Trending tokens right now: most-boosted tokens across all chains (DexScreener boosts feed) with links, icons, and chain ids. One call for the current hype radar.",
+        {"items": [{"chainId": "solana", "tokenAddress": "...", "amount": 5000, "url": "..."}]},
+        tags=["price", "crypto", "trending", "market-data"],
+    ),
+    "GET /api/crypto/fear-greed": paid(
+        "$0.005", "Crypto Fear & Greed Index (alternative.me): current value 0-100, classification, and yesterday/previous-week values.",
+        {"value": 72, "classification": "Greed", "yesterday": 68, "last_week": 54},
+        tags=["price", "crypto", "sentiment", "market-data"],
+    ),
+    "GET /api/crypto/global": paid(
+        "$0.005", "Global crypto market snapshot: total market cap, 24h volume, BTC/ETH dominance, active currencies, market cap change 24h.",
+        {"total_market_cap_usd": 3400000000000, "btc_dominance": 57.2, "eth_dominance": 11.4},
+        tags=["price", "crypto", "market", "dominance", "market-data"],
+    ),
     "GET /api/qr": paid(
         "$0.01", "Generate a QR code PNG for any text/URL/payment link.",
         {"format": "png-base64", "text": "https://example.com"},
@@ -959,6 +974,68 @@ async def crypto_token(chain: str, address: str):
             "dex": top.get("dexId"), "pair": top.get("pairAddress"),
             "pair_url": top.get("url"), "pairs_seen": len(pairs),
             "ts": int(time.time())}
+
+
+@app.get("/api/crypto/trending")
+async def crypto_trending(limit: int = 25):
+    r = await _client.get("https://api.dexscreener.com/token-boosts/top/v1",
+        timeout=20, headers={"User-Agent": "x402atlas-trending/1.0"})
+    if r.status_code != 200 or not isinstance(r.json(), list):
+        return JSONResponse({"error": "upstream trending failed",
+                             "status": r.status_code}, status_code=502)
+    items = [{"chainId": t.get("chainId"), "tokenAddress": t.get("tokenAddress"),
+              "amount": t.get("amount"), "totalAmount": t.get("totalAmount"),
+              "url": t.get("url"), "description": (t.get("description") or "")[:200],
+              "icon": t.get("icon")}
+             for t in r.json()[:max(1, min(limit, 50))]]
+    return {"items": items, "count": len(items), "ts": int(time.time())}
+
+
+@app.get("/api/crypto/fear-greed")
+async def crypto_fear_greed():
+    r = await _client.get("https://api.alternative.me/fng/?limit=8&format=json",
+        timeout=20, headers={"User-Agent": "x402atlas-fng/1.0"})
+    data = (r.json().get("data") or []) if r.status_code == 200 else []
+    if not data:
+        return JSONResponse({"error": "upstream fng failed", "status": r.status_code},
+                            status_code=502)
+    cur = data[0]
+    return {"value": int(cur.get("value", 0)),
+            "classification": cur.get("value_classification"),
+            "yesterday": int(data[1]["value"]) if len(data) > 1 else None,
+            "last_week": int(data[-1]["value"]) if len(data) > 1 else None,
+            "history": [{"value": int(d["value"]),
+                         "classification": d.get("value_classification"),
+                         "ts": int(d["timestamp"])} for d in data],
+            "ts": int(time.time())}
+
+
+@app.get("/api/crypto/global")
+async def crypto_global():
+    r = await _client.get("https://api.coinpaprika.com/v1/global", timeout=20,
+                          headers={"User-Agent": "x402atlas-global/1.0"})
+    if r.status_code == 200:
+        d = r.json()
+        return {"total_market_cap_usd": d.get("market_cap_usd"),
+                "volume_24h_usd": d.get("volume_24h_usd"),
+                "btc_dominance": d.get("bitcoin_dominance_percentage"),
+                "cryptocurrencies_count": d.get("cryptocurrencies_number"),
+                "market_cap_change_24h_pct": d.get("market_cap_change_24h"),
+                "volume_change_24h_pct": d.get("volume_24h_change_24h"),
+                "upstream": "coinpaprika", "ts": int(time.time())}
+    r2 = await _client.get("https://api.coingecko.com/api/v3/global", timeout=20,
+                           headers={"User-Agent": "x402atlas-global/1.0"})
+    if r2.status_code != 200:
+        return JSONResponse({"error": "upstream global failed",
+                             "status": r.status_code}, status_code=502)
+    g = r2.json().get("data") or {}
+    return {"total_market_cap_usd": (g.get("total_market_cap") or {}).get("usd"),
+            "volume_24h_usd": (g.get("total_volume") or {}).get("usd"),
+            "btc_dominance": (g.get("market_cap_percentage") or {}).get("btc"),
+            "eth_dominance": (g.get("market_cap_percentage") or {}).get("eth"),
+            "cryptocurrencies_count": g.get("active_cryptocurrencies"),
+            "market_cap_change_24h_pct": g.get("market_cap_change_percentage_24h_usd"),
+            "upstream": "coingecko", "ts": int(time.time())}
 
 
 import re
