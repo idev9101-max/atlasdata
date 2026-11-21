@@ -214,7 +214,7 @@ routes = {
         input_schema={"type": "object", "properties": {"ids": {"type": "string"}}, "required": ["ids"]},
         tags=["price", "crypto", "batch", "market-data"],
     ),
-    "GET /api/crypto/token/{chain}/{address}": paid(
+    "GET /api/crypto/token/[chain]/[address]": paid(
         "$0.005", "DEX token lookup by contract: price_usd, liquidity, 24h volume/txns, top pair. chain: eth|bsc|polygon|arbitrum|base|solana|... (DexScreener chain id).",
         {"symbol": "WETH", "price_usd": "3200.1", "liquidity_usd": 12000000, "dex": "uniswap"},
         path_params={"type": "object", "properties": {"chain": {"type": "string"}, "address": {"type": "string"}}, "required": ["chain", "address"]},
