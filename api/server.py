@@ -167,7 +167,7 @@ routes = {
         tags=["price", "crypto", "market-data", "ticker"],
     ),
     "GET /api/token/verdict": paid(
-        "$0.02", "Token security verdict for any contract: honeypot simulation (buy/sell test, risk level, flags) merged with GoPlus security scan (holder concentration, taxes, proxy/mint/freeze functions, LP lock, owner privileges)  -  one call screens a token before you touch it. Params: address=0x..., chain=ethereum|bsc|polygon|arbitrum|base|avalanche (or numeric chain id). No account, no API key.   -  $0.02/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.001", "Token security verdict for any contract: honeypot simulation (buy/sell test, risk level, flags) merged with GoPlus security scan (holder concentration, taxes, proxy/mint/freeze functions, LP lock, owner privileges)  -  one call screens a token before you touch it. Params: address=0x..., chain=ethereum|bsc|polygon|arbitrum|base|avalanche (or numeric chain id). No account, no API key.   -  $0.02/call. Support: atlasdataeb5a87@fldubai.com",
         {"address": "0x...", "chain": "base", "verdict": {"risk": "low", "is_honeypot": False, "flags": []}},
         input_schema={"type": "object", "properties": {"address": {"type": "string"}, "chain": {"type": "string"}}, "required": ["address"]},
         tags=["token", "security", "honeypot", "risk", "screener"],
@@ -215,7 +215,7 @@ routes = {
         tags=["qr", "utility"],
     ),
     "GET /api/image/gen": paid(
-        "$0.02", "AI image generation from a text prompt  -  returns a JPEG (base64) rendered on demand. Params: prompt (required), width, height, seed, model=flux|turbo. Image-gen endpoints carry ~52% of top-100 x402 demand  -  this is the media-gen vertical's standard shape. No account, no API key.   -  $0.02/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.001", "AI image generation from a text prompt  -  returns a JPEG (base64) rendered on demand. Params: prompt (required), width, height, seed, model=flux|turbo. Image-gen endpoints carry ~52% of top-100 x402 demand  -  this is the media-gen vertical's standard shape. No account, no API key.   -  $0.02/call. Support: atlasdataeb5a87@fldubai.com",
         {"prompt": "a red apple", "width": 1024, "height": 1024, "jpeg_b64": "..."},
         input_schema={"type": "object", "properties": {"prompt": {"type": "string"}, "width": {"type": "integer"}, "height": {"type": "integer"}, "seed": {"type": "integer"}, "model": {"type": "string"}}, "required": ["prompt"]},
         tags=["image", "gen", "ai", "media", "generative"],
