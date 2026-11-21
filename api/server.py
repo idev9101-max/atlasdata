@@ -167,7 +167,7 @@ routes = {
         tags=["price", "crypto", "market-data", "ticker"],
     ),
     "GET /api/token/verdict": paid(
-        "$0.001", "Token security verdict for any contract: honeypot simulation (buy/sell test, risk level, flags) merged with GoPlus security scan (holder concentration, taxes, proxy/mint/freeze functions, LP lock, owner privileges)  -  one call screens a token before you touch it. Params: address=0x..., chain=ethereum|bsc|polygon|arbitrum|base|avalanche (or numeric chain id). No account, no API key.   -  $0.02/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.02", "Token security verdict for any contract: honeypot simulation (buy/sell test, risk level, flags) merged with GoPlus security scan (holder concentration, taxes, proxy/mint/freeze functions, LP lock, owner privileges)  -  one call screens a token before you touch it. Params: address=0x..., chain=ethereum|bsc|polygon|arbitrum|base|avalanche (or numeric chain id). No account, no API key.   -  $0.02/call. Support: atlasdataeb5a87@fldubai.com",
         {"address": "0x...", "chain": "base", "verdict": {"risk": "low", "is_honeypot": False, "flags": []}},
         input_schema={"type": "object", "properties": {"address": {"type": "string"}, "chain": {"type": "string"}}, "required": ["address"]},
         tags=["token", "security", "honeypot", "risk", "screener"],
@@ -209,19 +209,19 @@ routes = {
         tags=["price", "crypto", "exchange", "market-data"],
     ),
     "GET /api/qr": paid(
-        "$0.001", "Generate a QR code PNG for any text/URL/payment link.",
+        "$0.01", "Generate a QR code PNG for any text/URL/payment link.",
         {"format": "png-base64", "text": "https://example.com"},
         input_schema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
         tags=["qr", "utility"],
     ),
     "GET /api/image/gen": paid(
-        "$0.001", "AI image generation from a text prompt  -  returns a JPEG (base64) rendered on demand. Params: prompt (required), width, height, seed, model=flux|turbo. Image-gen endpoints carry ~52% of top-100 x402 demand  -  this is the media-gen vertical's standard shape. No account, no API key.   -  $0.02/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.02", "AI image generation from a text prompt  -  returns a JPEG (base64) rendered on demand. Params: prompt (required), width, height, seed, model=flux|turbo. Image-gen endpoints carry ~52% of top-100 x402 demand  -  this is the media-gen vertical's standard shape. No account, no API key.   -  $0.02/call. Support: atlasdataeb5a87@fldubai.com",
         {"prompt": "a red apple", "width": 1024, "height": 1024, "jpeg_b64": "..."},
         input_schema={"type": "object", "properties": {"prompt": {"type": "string"}, "width": {"type": "integer"}, "height": {"type": "integer"}, "seed": {"type": "integer"}, "model": {"type": "string"}}, "required": ["prompt"]},
         tags=["image", "gen", "ai", "media", "generative"],
     ),
     "GET /api/llm/ask": paid(
-        "$0.001", "LLM text completion  -  ask any question, get a model-generated answer as JSON. Params: prompt (required), model=openai-fast, system (optional system instruction), seed. Covers the LLM/inference vertical  -  one of the top x402 demand categories. No account, no API key.   -  $0.01/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.01", "LLM text completion  -  ask any question, get a model-generated answer as JSON. Params: prompt (required), model=openai-fast, system (optional system instruction), seed. Covers the LLM/inference vertical  -  one of the top x402 demand categories. No account, no API key.   -  $0.01/call. Support: atlasdataeb5a87@fldubai.com",
         {"prompt": "What is a honeypot token?", "model": "openai-fast", "answer": "..."},
         input_schema={"type": "object", "properties": {"prompt": {"type": "string"}, "model": {"type": "string"}, "system": {"type": "string"}, "seed": {"type": "integer"}}, "required": ["prompt"]},
         tags=["llm", "ai", "inference", "gen", "agent"],
@@ -233,7 +233,7 @@ routes = {
         tags=["llm", "ai", "inference", "chat", "completions", "openai", "agent"],
     ),
     "GET /api/weather/current": paid(
-        "$0.001", "Weather bundle for any coordinates  -  current temperature, feels-like, humidity, wind speed/direction/gusts, pressure, cloud cover, precipitation, UV index, day/night flag in one call. Params: lat, lon (required). No account, no API key.   -  $0.002/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.002", "Weather bundle for any coordinates  -  current temperature, feels-like, humidity, wind speed/direction/gusts, pressure, cloud cover, precipitation, UV index, day/night flag in one call. Params: lat, lon (required). No account, no API key.   -  $0.002/call. Support: atlasdataeb5a87@fldubai.com",
         {"lat": 32.08, "lon": 34.78, "temperature_c": 21.5, "humidity": 60, "wind_kmh": 12},
         input_schema={"type": "object", "properties": {"lat": {"type": "number"}, "lon": {"type": "number"}}, "required": ["lat", "lon"]},
         tags=["weather", "data", "current", "forecast"],
@@ -363,13 +363,13 @@ routes = {
         tags=["chain", "base", "balance", "primitive"],
     ),
     "GET /api/chain/estimate-gas": paid(
-        "$0.001", "Gas estimate for a call on Base (eth_estimateGas) + current gas price. Params: to, data (optional), from (optional), value (optional hex wei). No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.005", "Gas estimate for a call on Base (eth_estimateGas) + current gas price. Params: to, data (optional), from (optional), value (optional hex wei). No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"to": "0x...", "gas_estimate": 21000, "gas_price_gwei": "0.02"},
         input_schema={"type": "object", "properties": {"to": {"type": "string"}, "data": {"type": "string"}, "from": {"type": "string"}, "value": {"type": "string"}}, "required": ["to"]},
         tags=["chain", "base", "gas", "primitive"],
     ),
     "GET /api/chain/events": paid(
-        "$0.001", "Raw event logs on Base (eth_getLogs)  -  params: address (contract), topic0 (optional), from_block, to_block (max ~10k block range). No account, no API key.   -  $0.01/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.01", "Raw event logs on Base (eth_getLogs)  -  params: address (contract), topic0 (optional), from_block, to_block (max ~10k block range). No account, no API key.   -  $0.01/call. Support: atlasdataeb5a87@fldubai.com",
         {"address": "0x...", "logs": [{"topics": [], "data": "0x...", "block": 37000000}]},
         input_schema={"type": "object", "properties": {"address": {"type": "string"}, "topic0": {"type": "string"}, "from_block": {"type": "integer"}, "to_block": {"type": "integer"}}, "required": ["address"]},
         tags=["chain", "base", "events", "logs", "primitive"],
@@ -419,7 +419,7 @@ routes = {
         tags=["x402", "dataset", "catalog", "market-data", "meta", "premium", "bulk"],
     ),
     "GET /api/url/read": paid(
-        "$0.001", "?url=<https_url> fetches the page and returns title + meta description + readable main text (boilerplate/nav/scripts stripped, up to 12KB)  -  Firecrawl-lite for agents, no API key needed.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.005", "?url=<https_url> fetches the page and returns title + meta description + readable main text (boilerplate/nav/scripts stripped, up to 12KB)  -  Firecrawl-lite for agents, no API key needed.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"url": "https://example.com", "status": 200, "title": "...", "text": "..."},
         tags=["web", "scrape", "read", "content", "agent", "utility"],
     ),
