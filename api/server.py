@@ -208,6 +208,18 @@ routes = {
         path_params={"type": "object", "properties": {"pair": {"type": "string"}}, "required": ["pair"]},
         tags=["price", "crypto", "exchange", "market-data"],
     ),
+    "GET /api/crypto/prices": paid(
+        "$0.005", "Batch crypto prices: ids=bitcoin,ethereum,solana (CoinGecko ids, max 20) returns usd price, 24h change, market cap, volume per asset. One call replaces N single-price calls.",
+        {"bitcoin": {"usd": 100123, "usd_24h_change": 1.2, "usd_market_cap": 1990000000000, "usd_24h_vol": 40000000000}},
+        input_schema={"type": "object", "properties": {"ids": {"type": "string"}}, "required": ["ids"]},
+        tags=["price", "crypto", "batch", "market-data"],
+    ),
+    "GET /api/crypto/token/{chain}/{address}": paid(
+        "$0.005", "DEX token lookup by contract: price_usd, liquidity, 24h volume/txns, top pair. chain: eth|bsc|polygon|arbitrum|base|solana|... (DexScreener chain id).",
+        {"symbol": "WETH", "price_usd": "3200.1", "liquidity_usd": 12000000, "dex": "uniswap"},
+        path_params={"type": "object", "properties": {"chain": {"type": "string"}, "address": {"type": "string"}}, "required": ["chain", "address"]},
+        tags=["price", "crypto", "token", "dex", "market-data"],
+    ),
     "GET /api/qr": paid(
         "$0.01", "Generate a QR code PNG for any text/URL/payment link.",
         {"format": "png-base64", "text": "https://example.com"},
@@ -869,6 +881,60 @@ async def exchange(pair: str):
     if r.status_code != 200:
         return JSONResponse({"error": f"unknown pair {pair}"}, status_code=404)
     return {"pair": pair, "rate": r.json()["data"]["amount"], "ts": int(time.time())}
+
+
+@app.get("/api/crypto/prices")
+async def crypto_prices(ids: str = "bitcoin"):
+    ids = ",".join([i.strip().lower() for i in ids.split(",") if i.strip()][:20])
+    if not ids:
+        return JSONResponse({"error": "ids required (e.g. ids=bitcoin,ethereum)"}, status_code=400)
+    url = ("https://api.coingecko.com/api/v3/simple/price"
+           f"?ids={ids}&vs_currencies=usd&include_24hr_change=true"
+           "&include_market_cap=true&include_24hr_vol=true")
+    r = await _client.get(url, timeout=20,
+                          headers={"User-Agent": "x402atlas-prices/1.0"})
+    if r.status_code != 200:
+        return JSONResponse({"error": "upstream prices failed", "status": r.status_code},
+                            status_code=502)
+    d = r.json()
+    if not d:
+        return JSONResponse({"error": f"unknown ids {ids}"}, status_code=404)
+    return {"prices": d, "ts": int(time.time())}
+
+
+@app.get("/api/crypto/token/{chain}/{address}")
+async def crypto_token(chain: str, address: str):
+    if not re.match(r"^[a-zA-Z0-9_]{2,20}$", chain):
+        return JSONResponse({"error": "bad chain id"}, status_code=400)
+    if not re.match(r"^[a-zA-Z0-9]{6,80}$", address):
+        return JSONResponse({"error": "bad address"}, status_code=400)
+    r = await _client.get(
+        f"https://api.dexscreener.com/latest/dex/tokens/{address}",
+        timeout=20, headers={"User-Agent": "x402atlas-token/1.0"})
+    if r.status_code != 200:
+        return JSONResponse({"error": "upstream dex lookup failed", "status": r.status_code},
+                            status_code=502)
+    pairs = [p for p in (r.json().get("pairs") or [])
+             if (p.get("chainId") or "").lower() == chain.lower()]
+    if not pairs:
+        pairs = r.json().get("pairs") or []
+    if not pairs:
+        return JSONResponse({"error": "no liquidity pairs found"}, status_code=404)
+    top = max(pairs, key=lambda p: (p.get("liquidity") or {}).get("usd") or 0)
+    tok = top.get("baseToken") or {}
+    liq = top.get("liquidity") or {}
+    vol = top.get("volume") or {}
+    tx = top.get("txns", {}).get("h24") or {}
+    return {"chain": top.get("chainId"), "symbol": tok.get("symbol"),
+            "name": tok.get("name"), "token_address": tok.get("address"),
+            "price_usd": top.get("priceUsd"), "price_native": top.get("priceNative"),
+            "price_change_24h_pct": (top.get("priceChange") or {}).get("h24"),
+            "liquidity_usd": liq.get("usd"), "fdv": top.get("fdv"),
+            "market_cap": top.get("marketCap"), "volume_24h_usd": vol.get("h24"),
+            "txns_24h": {"buys": tx.get("buys"), "sells": tx.get("sells")},
+            "dex": top.get("dexId"), "pair": top.get("pairAddress"),
+            "pair_url": top.get("url"), "pairs_seen": len(pairs),
+            "ts": int(time.time())}
 
 
 import re
