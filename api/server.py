@@ -421,7 +421,7 @@ routes = {
     ),
     "GET /api/x402/pulse": paid(
         "$0.02", "Top-20 demand leaderboard (calls + payers), new-today listings, median price, curated club size  -  computed daily from the latest 33k-listing x402 catalog snapshot. No account, no API key.   -  $0.02/call. Support: atlasdataeb5a87@fldubai.com",
-        {"snapshot": "2026-11-21", "total_listings": 38895, "top": [{"resource": "...", "calls_30d": 0}], "new_today": []},
+        {"snapshot": "2026-11-24", "total_listings": 41984, "top": [{"resource": "...", "calls_30d": 0}], "new_today": []},
         tags=["x402", "market-data", "pulse", "leaderboard", "meta"],
     ),
     "POST /api/x402/recommend": paid(
@@ -436,13 +436,13 @@ routes = {
         tags=["x402", "recommend", "discovery", "catalog", "market-data", "meta"],
     ),
     "GET /api/x402/dataset-pro": paid(
-        "$10.00", "Enriched x402 catalog dataset-pro: all 38,895 listings PLUS per-row derived fields  -  elite flag (top-decile by calls), risk_flags (ACTIVE_24H/DORMANT_7D/NEVER_CALLED/ZERO_CALLS/SINGLE_PAYER/UNNAMED/CDP_CURATED), price_usd, calls_per_payer  -  one-shot JSONL. Built for vendor due-diligence and market research. $10/download. Support: atlasdataeb5a87@fldubai.com",
-        {"snapshot": "2026-11-21", "total_listings": 38895, "format": "jsonl", "enriched_fields": ["elite", "risk_flags", "price_usd", "calls_per_payer"]},
+        "$10.00", "Enriched x402 catalog dataset-pro: all 41,984 listings PLUS per-row derived fields  -  elite flag (top-decile by calls), risk_flags (ACTIVE_24H/DORMANT_7D/NEVER_CALLED/ZERO_CALLS/SINGLE_PAYER/UNNAMED/CDP_CURATED), price_usd, calls_per_payer  -  one-shot JSONL. Built for vendor due-diligence and market research. $10/download. Support: atlasdataeb5a87@fldubai.com",
+        {"snapshot": "2026-11-24", "total_listings": 41984, "format": "jsonl", "enriched_fields": ["elite", "risk_flags", "price_usd", "calls_per_payer"]},
         tags=["x402", "dataset", "catalog", "market-data", "meta", "premium", "bulk", "enterprise"],
     ),
     "GET /api/x402/dataset": paid(
-        "$5.00", "Full x402 catalog dataset: all 38,895 listings with 30d calls, unique payers, price, networks, curated flag, last-called  -  one-shot JSONL download (application/x-ndjson, ~17MB). Fields per row: r,d,t,c,p,net,amt,cur,sn,lc. Premium research dataset  -  $5/download. Support: atlasdataeb5a87@fldubai.com",
-        {"snapshot": "2026-11-21", "total_listings": 38895, "format": "jsonl", "fields": ["r", "d", "t", "c", "p", "net", "amt", "cur", "sn", "lc"]},
+        "$5.00", "Full x402 catalog dataset: all 41,984 listings with 30d calls, unique payers, price, networks, curated flag, last-called  -  one-shot JSONL download (application/x-ndjson, ~17MB). Fields per row: r,d,t,c,p,net,amt,cur,sn,lc. Premium research dataset  -  $5/download. Support: atlasdataeb5a87@fldubai.com",
+        {"snapshot": "2026-11-24", "total_listings": 41984, "format": "jsonl", "fields": ["r", "d", "t", "c", "p", "net", "amt", "cur", "sn", "lc"]},
         tags=["x402", "dataset", "catalog", "market-data", "meta", "premium", "bulk"],
     ),
     "GET /api/url/read": paid(
@@ -452,13 +452,13 @@ routes = {
     ),
     "GET /api/x402/top": paid(
         "$0.05", "Top-N x402 sellers ranked by REAL 30d demand with each entry's percentile and share of total market calls  -  the leaderboard agents and vendors actually buy from. Params: limit (max 200), net, min_calls. No account, no API key.   -  $0.05/call. Support: atlasdataeb5a87@fldubai.com",
-        {"snapshot": "2026-11-21", "total_listings": 38895, "top": [{"rank": 1, "resource": "...", "calls_30d": 0, "market_share_pct": 0.0, "percentile": 100.0}]},
+        {"snapshot": "2026-11-24", "total_listings": 41984, "top": [{"rank": 1, "resource": "...", "calls_30d": 0, "market_share_pct": 0.0, "percentile": 100.0}]},
         input_schema={"type": "object", "properties": {"limit": {"type": "integer"}, "net": {"type": "string"}, "min_calls": {"type": "integer"}}},
         tags=["x402", "leaderboard", "catalog", "market-data", "meta"],
     ),
     "GET /api/x402/gaps": paid(
         "$0.10", "Underserved x402 niches: per-category supply vs demand analysis  -  which verticals buyers call most but few sellers serve. gap_score = demand share / supply share (>1 = demand exceeds supply). Plus median price and elite rate per category, and the top live listing to benchmark. Vendor/due-diligence intel.   -  $0.10/call. Support: atlasdataeb5a87@fldubai.com",
-        {"snapshot": "2026-11-21", "categories": [{"category": "search", "listings": 0, "demand_share_pct": 0.0, "supply_share_pct": 0.0, "gap_score": 0.0, "elite_rate_pct": 0.0, "median_price_usd": 0.0}]},
+        {"snapshot": "2026-11-24", "categories": [{"category": "search", "listings": 0, "demand_share_pct": 0.0, "supply_share_pct": 0.0, "gap_score": 0.0, "elite_rate_pct": 0.0, "median_price_usd": 0.0}]},
         tags=["x402", "market-data", "analysis", "gaps", "meta", "premium"],
     ),
     "GET /x402/ping": paid(
@@ -468,7 +468,7 @@ routes = {
     ),
     "GET /x402/time": paid(
         "$0.001", "Current server time  -  unix seconds + ISO-8601 UTC. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
-        {"unix": 1700000000, "iso": "2026-11-21T00:00:00Z"},
+        {"unix": 1700000000, "iso": "2026-11-24T00:00:00Z"},
         tags=["x402", "utility", "time"],
     ),
     "GET /x402/uuid": paid(
@@ -708,7 +708,7 @@ PAID_META = {
     "/api/btc/tx/{txid}": ("$0.01", "confirmations, fee, size, outputs  -  Bitcoin transaction details."),
     "/api/btc/whales": ("$0.01", "Recent large BTC transactions from the latest block  -  params: min_btc, pages."),
     "/api/x402/recommend": ("$0.02", "Best sellers for a described job, ranked by proven demand with risk_flags  -  POST JSON {need, max_price, limit}."),
-    "/api/x402/dataset": ("$5.00", "Full x402 catalog dataset: all 38,895 listings with 30d calls/payers as NDJSON  -  one bulk download."),
+    "/api/x402/dataset": ("$5.00", "Full x402 catalog dataset: all 41,984 listings with 30d calls/payers as NDJSON  -  one bulk download."),
     "/api/x402/pulse": ("$0.02", "Daily x402 market leaderboard + median pricing stats from the live catalog."),
     "/api/x402/top": ("$0.05", "Top-N x402 sellers by real 30d calls with percentile + market share. Params: limit, net, min_calls."),
     "/api/x402/gaps": ("$0.10", "Underserved x402 niches: per-category supply vs demand gap analysis (gap_score = demand/supply share)."),
@@ -802,7 +802,7 @@ async def llms_txt(request: Request):
         "",
         "Free sample (no payment):",
         f"- {base}/free/price/[symbol]: free spot price, same data as the paid routes",
-        f"- {base}/api/x402/census: free x402 market census teaser (38,895 listings stats); full dataset $5 at /api/x402/dataset",
+        f"- {base}/api/x402/census: free x402 market census teaser (41,984 listings stats); full dataset $5 at /api/x402/dataset",
         "",
         "## ZapAds registry (L402 proxy)",
         "",
@@ -2214,7 +2214,7 @@ async def x402_discover(q: str = "", tag: str = "", net: str = "", min_calls: in
              "tags": r["t"], "last_called_at": r.get("lc") or None, "risk_flags": _flags(r)}
             for r in hits[:limit]
         ],
-        "snapshot": "2026-11-21 CDP Bazaar catalog (38,895 listings)",
+        "snapshot": "2026-11-24 CDP Bazaar catalog (41,984 listings)",
         "risk_flag_legend": {
             "ACTIVE_24H": "called within the last 24h (live cohort: 4.5% of listings, 81% of demand)",
             "DORMANT_7D": "no call in >7 days",
@@ -2263,7 +2263,7 @@ async def x402_pulse():
     top = sorted(rows, key=lambda r: (r["c"], r["p"]), reverse=True)[:20]
     nets = Counter(r["net"] for r in rows)
     return {
-        "snapshot": "2026-11-21 CDP Bazaar catalog",
+        "snapshot": "2026-11-24 CDP Bazaar catalog",
         "total_listings": len(rows),
         "total_calls_30d": sum(r["c"] for r in rows),
         "total_payers_30d": sum(r["p"] for r in rows),
@@ -2334,7 +2334,7 @@ async def _recommend(need: str, net: str, limit: int, max_price: float):
             for s, r, price, flags in scored[:limit]
         ],
         "candidates": len(scored),
-        "snapshot": "2026-11-21 CDP Bazaar catalog (38,895 listings)",
+        "snapshot": "2026-11-24 CDP Bazaar catalog (41,984 listings)",
     }
 
 
@@ -2431,7 +2431,7 @@ async def x402_top(limit: int = 50, net: str = "", min_calls: int = 0):
             if (not min_calls or r["c"] >= min_calls) and (not net or net in r["net"].lower())]
     hits.sort(key=lambda r: (r["c"], r["p"]), reverse=True)
     return {
-        "snapshot": "2026-11-21 CDP Bazaar catalog (38,895 listings)",
+        "snapshot": "2026-11-24 CDP Bazaar catalog (41,984 listings)",
         "total_listings": len(rows),
         "total_calls_30d": total_calls,
         "top": [
@@ -2487,7 +2487,7 @@ async def x402_gaps():
         })
     cats.sort(key=lambda c: c["gap_score"], reverse=True)
     return {
-        "snapshot": "2026-11-21 CDP Bazaar catalog (38,895 listings)",
+        "snapshot": "2026-11-24 CDP Bazaar catalog (41,984 listings)",
         "total_listings": len(rows),
         "total_calls_30d": total_calls,
         "elite_cutoff_calls_30d": elite_cut,
@@ -2551,7 +2551,7 @@ async def util_status():
         "status": "operational",
         "version": "0.1.0",
         "uptime_s": int(time.time() - _UTIL_T0),
-        "snapshot": "2026-11-21 CDP Bazaar catalog (38,895 listings)",
+        "snapshot": "2026-11-24 CDP Bazaar catalog (41,984 listings)",
         "paid_endpoints": len(routes),
     }
 
@@ -2729,8 +2729,8 @@ async def x402_dataset_pro():
         content=body,
         media_type="application/x-ndjson",
         headers={
-            "Content-Disposition": 'attachment; filename="x402-catalog-pro-2026-11-21.jsonl"',
-            "X-Snapshot": "2026-11-21",
+            "Content-Disposition": 'attachment; filename="x402-catalog-pro-2026-11-24.jsonl"',
+            "X-Snapshot": "2026-11-24",
             "X-Total-Listings": str(len(out)),
         },
     )
@@ -2746,9 +2746,9 @@ async def x402_dataset():
         content=body,
         media_type="application/x-ndjson",
         headers={
-            "Content-Disposition": 'attachment; filename="x402-catalog-2026-11-21.jsonl"',
-            "X-Snapshot": "2026-11-21",
-            "X-Total-Listings": "38895",
+            "Content-Disposition": 'attachment; filename="x402-catalog-2026-11-24.jsonl"',
+            "X-Snapshot": "2026-11-24",
+            "X-Total-Listings": "41984",
         },
     )
 
@@ -2771,7 +2771,7 @@ async def x402_census():
     top_calls = sum(sorted((c for c, _ in called), reverse=True)[:max(1, int(len(called) * 0.01))])
     total_calls = sum(cs) or 1
     return {
-        "snapshot": "2026-11-21",
+        "snapshot": "2026-11-24",
         "total_listings": len(rows),
         "called_30d": len(called),
         "live_share_pct": round(100 * len(called) / len(rows), 2),
@@ -2779,7 +2779,7 @@ async def x402_census():
         "median_payers_per_listing": _st.median(ps),
         "est_30d_gmv_usd": round(gmv, 0),
         "top_1pct_call_share_pct": round(100 * top_calls / total_calls, 1),
-        "full_dataset": "GET /api/x402/dataset  -  $5 one-time, all 38,895 rows as NDJSON",
+        "full_dataset": "GET /api/x402/dataset  -  $5 one-time, all 41,984 rows as NDJSON",
         "search": "GET /api/x402/discover?q=  -  $0.03, ranked by proven demand",
     }
 
