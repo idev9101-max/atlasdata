@@ -299,6 +299,12 @@ routes = {
         input_schema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
         tags=["qr", "utility"],
     ),
+    "GET /api/image/gen-lite": paid(
+        "$0.001", "Fast low-cost AI image generation from a text prompt  -  returns a 512x512 JPEG as base64 using the turbo image model. For agent thumbnails, icons, concepts, memes, and quick visual drafts. Params: prompt (required), seed optional. No account, no API key. $0.001/call.",
+        {"prompt": "a red apple", "width": 512, "height": 512, "format": "jpeg-base64", "jpeg_b64": "..."},
+        input_schema={"type": "object", "properties": {"prompt": {"type": "string"}, "seed": {"type": "integer"}}, "required": ["prompt"]},
+        tags=["image", "gen", "ai", "media", "generative", "thumbnail"],
+    ),
     "GET /api/image/gen": paid(
         "$0.02", "AI image generation from a text prompt  -  returns a JPEG (base64) rendered on demand. Params: prompt (required), width, height, seed, model=flux|turbo. Image-gen endpoints carry ~52% of top-100 x402 demand  -  this is the media-gen vertical's standard shape. No account, no API key.   -  $0.02/call. Support: atlasdataeb5a87@fldubai.com",
         {"prompt": "a red apple", "width": 1024, "height": 1024, "jpeg_b64": "..."},
@@ -312,7 +318,7 @@ routes = {
         tags=["llm", "ai", "inference", "gen", "agent"],
     ),
     "POST /api/v1/chat/completions": paid(
-        "$0.005", "OpenAI-compatible chat completions  -  POST {model, messages[], max_tokens?, temperature?, seed?}; returns a standard chat.completion object {id, choices[0].message.content, usage}. Drop-in shape for agent stacks that already speak the OpenAI protocol. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
+        "$0.001", "OpenAI-compatible chat completions  -  POST {model, messages[], max_tokens?, temperature?, seed?}; returns a standard chat.completion object {id, choices[0].message.content, usage}. Drop-in shape for agent stacks that already speak the OpenAI protocol. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"id": "chatcmpl-x", "object": "chat.completion", "choices": [{"message": {"role": "assistant", "content": "..."}}]},
         input_schema={"type": "object", "properties": {"model": {"type": "string"}, "messages": {"type": "array"}, "max_tokens": {"type": "integer"}, "temperature": {"type": "number"}, "seed": {"type": "integer"}}, "required": ["messages"]},
         tags=["llm", "ai", "inference", "chat", "completions", "openai", "agent"],
@@ -1309,6 +1315,20 @@ async def qr(text: str):
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return {"format": "png-base64", "text": text, "png": base64.b64encode(buf.getvalue()).decode()}
+
+
+@app.get("/api/image/gen-lite")
+async def image_gen_lite(prompt: str, seed: int = 42):
+    import urllib.parse
+    prompt = prompt[:500]
+    url = (f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}"
+           f"?width=512&height=512&seed={seed}&model=turbo&nologo=true")
+    r = await _client.get(url, timeout=60, follow_redirects=True)
+    if r.status_code != 200 or "image" not in (r.headers.get("content-type") or ""):
+        return JSONResponse({"error": "upstream image gen failed", "status": r.status_code}, status_code=502)
+    return {"prompt": prompt, "width": 512, "height": 512, "seed": seed, "model": "turbo",
+            "format": "jpeg-base64", "jpeg_b64": base64.b64encode(r.content).decode(),
+            "ts": int(time.time())}
 
 
 @app.get("/api/image/gen")
