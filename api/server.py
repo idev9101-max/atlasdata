@@ -35,9 +35,61 @@ POLY_NETWORK = "eip155:137"  # Polygon  -  #3 rail by accepts (8.3%)
 BASE_RPC = "https://base.publicnode.com"
 COINBASE_API = "https://api.coinbase.com/v2"
 
-# --- facilitators: PayAI first for Bazaar listing, CDP as fallback ---
+# --- facilitators: CDP first for official Bazaar indexing, PayAI fallback ---
 payai = HTTPFacilitatorClient(FacilitatorConfig(url="https://facilitator.payai.network"))
-server = x402ResourceServer([payai])  # CDP facilitator went 401 unauth  -  PayAI covers all 6 rails
+facilitators = []
+
+def _cdp_facilitator_config():
+    key_id = os.getenv("CDP_API_KEY_ID")
+    key_secret = os.getenv("CDP_API_KEY_SECRET")
+    if not key_id or not key_secret:
+        return None
+    import random
+    import time
+    import base64
+    import jwt
+    from urllib.parse import urlparse
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec, ed25519
+
+    key_data = key_secret.replace("\\n", "\n")
+    try:
+        private_key = serialization.load_pem_private_key(key_data.encode(), password=None)
+    except Exception:
+        decoded = base64.b64decode(key_data)
+        private_key = ed25519.Ed25519PrivateKey.from_private_bytes(decoded[:32])
+    algorithm = "ES256" if isinstance(private_key, ec.EllipticCurvePrivateKey) else "EdDSA"
+    host = "api.cdp.coinbase.com"
+    base = "/platform/v2/x402"
+
+    def token(method, path):
+        now = int(time.time())
+        uri = f"{method} {host}{path}"
+        return jwt.encode(
+            {"sub": key_id, "iss": "cdp", "nbf": now, "exp": now + 120, "uris": [uri]},
+            private_key,
+            algorithm=algorithm,
+            headers={"kid": key_id, "typ": "JWT", "nonce": "".join(random.choices("0123456789", k=16))},
+        )
+
+    def create_headers():
+        return {
+            "verify": {"Authorization": "Bearer " + token("POST", base + "/verify")},
+            "settle": {"Authorization": "Bearer " + token("POST", base + "/settle")},
+            "supported": {"Authorization": "Bearer " + token("GET", base + "/supported")},
+            "list": {},
+        }
+
+    return {"url": "https://api.cdp.coinbase.com/platform/v2/x402", "create_headers": create_headers}
+
+try:
+    cdp_config = _cdp_facilitator_config()
+    if cdp_config:
+        facilitators.append(HTTPFacilitatorClient(cdp_config))
+except Exception as e:
+    print("CDP facilitator unavailable:", repr(e)[:200])
+facilitators.append(payai)
+server = x402ResourceServer(facilitators)
 AVAX_NETWORK = "eip155:43114"  # Avalanche  -  6x-median rail (OP/Celo not facilitator-supported)
 ARB_NETWORK = "eip155:42161"  # Arbitrum  -  PayAI-supported, live catalog rail
 SEI_NETWORK = "eip155:1329"  # Sei  -  median 7 calls in census (7x Base), PayAI-supported
