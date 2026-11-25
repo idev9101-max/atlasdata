@@ -123,6 +123,8 @@ server.register_extension(bazaar_resource_server_extension)
 
 def paid(price: str, description: str, out_example: dict, input_schema=None, path_params=None, tags=None):
     """RouteConfig factory with Bazaar discovery metadata."""
+    service_name = os.getenv("SERVICE_DISPLAY_NAME", "AtlasData")
+    public_base = os.getenv("PUBLIC_BASE_URL", "https://x402atlas.xyz").rstrip("/")
     ext = declare_discovery_extension(
         input_schema=input_schema,
         path_params_schema=path_params,
@@ -130,11 +132,11 @@ def paid(price: str, description: str, out_example: dict, input_schema=None, pat
     )
     ext["merchant"] = {
         "info": {
-            "name": "AtlasData",
+            "name": service_name,
             "operator": "direct (not a gateway or reseller)",
-            "docs": "https://x402atlas.xyz/llms.txt",
-            "catalog": "https://x402atlas.xyz/.well-known/x402",
-            "freePreflight": "https://x402atlas.xyz/api/x402/preflight",
+            "docs": public_base + "/llms.txt",
+            "catalog": public_base + "/.well-known/x402",
+            "freePreflight": public_base + "/api/x402/preflight",
         }
     }
     ext["payment-identifier"] = {
