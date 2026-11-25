@@ -218,6 +218,12 @@ routes = {
         path_params={"type": "object", "properties": {"symbol": {"type": "string"}}, "required": ["symbol"]},
         tags=["price", "crypto", "market-data", "ticker"],
     ),
+    "GET /api/token/verdict-lite": paid(
+        "$0.001", "Fast lightweight token verdict and contract security screen: GoPlus risk flags, honeypot/mint/proxy/blacklist/tax/freeze warnings, buy and sell tax, holder concentration, owner and creator share, simple safe/risk score. For agents screening memecoins and ERC-20 tokens before trading. Params: address=0x..., chain=ethereum|bsc|polygon|arbitrum|base|avalanche. No account, no API key. $0.001/call.",
+        {"address": "0x...", "chain": "base", "safe": False, "risk_score": 65, "risk_level": "medium", "flags": ["mintable"]},
+        input_schema={"type": "object", "properties": {"address": {"type": "string"}, "chain": {"type": "string"}}, "required": ["address"]},
+        tags=["token", "security", "honeypot", "risk", "screener", "memecoin", "verdict"],
+    ),
     "GET /api/token/verdict": paid(
         "$0.02", "Token security verdict for any contract: honeypot simulation (buy/sell test, risk level, flags) merged with GoPlus security scan (holder concentration, taxes, proxy/mint/freeze functions, LP lock, owner privileges)  -  one call screens a token before you touch it. Params: address=0x..., chain=ethereum|bsc|polygon|arbitrum|base|avalanche (or numeric chain id). No account, no API key.   -  $0.02/call. Support: atlasdataeb5a87@fldubai.com",
         {"address": "0x...", "chain": "base", "verdict": {"risk": "low", "is_honeypot": False, "flags": []}},
@@ -1167,6 +1173,48 @@ async def token_verdict(address: str, chain: str = "base"):
         "sell_tax": sell_tax, "holder_count": out["goplus"].get("holder_count"),
     }
     return out
+
+
+@app.get("/api/token/verdict-lite")
+async def token_verdict_lite(address: str, chain: str = "base"):
+    if not re.fullmatch(r"0x[0-9a-fA-F]{40}", address):
+        return JSONResponse({"error": "invalid address", "hint": "pass a 0x contract address"}, status_code=400)
+    cid = _GOPLUS_CHAIN.get(chain.lower(), chain)
+    try:
+        g = await _client.get(f"https://api.gopluslabs.io/api/v1/token_security/{cid}",
+                              params={"contract_addresses": address.lower()}, timeout=20)
+        gres = (g.json().get("result") or {}).get(address.lower()) or {}
+    except Exception as e:
+        return JSONResponse({"error": "security upstream unavailable", "detail": str(e)[:120]}, status_code=502)
+    if not gres:
+        return JSONResponse({"error": "token not found or unsupported chain", "chain": chain}, status_code=404)
+    watched = ("honeypot", "mintable", "proxy", "blacklist", "whitelist", "hidden_owner",
+               "selfdestruct", "external_call", "tax", "freeze", "transfer_pausable")
+    flags = sorted(k for k, v in gres.items() if str(v).lower() in ("1", "true") and any(t in k for t in watched))
+    def num(key):
+        try:
+            return float(gres.get(key) or 0)
+        except Exception:
+            return 0.0
+    buy_tax = num("buy_tax")
+    sell_tax = num("sell_tax")
+    owner_pct = num("owner_percent")
+    creator_pct = num("creator_percent")
+    score = min(100, len(flags) * 12 + min(30, (buy_tax + sell_tax) * 2) + min(25, (owner_pct + creator_pct) * 100))
+    if str(gres.get("is_honeypot", "")).lower() in ("1", "true"):
+        score = 100
+    risk_level = "high" if score >= 65 else "medium" if score >= 25 else "low"
+    return {
+        "address": address.lower(), "chain": chain, "chain_id": cid, "ts": int(time.time()),
+        "safe": score < 25 and not flags,
+        "risk_score": round(score, 1), "risk_level": risk_level, "flags": flags,
+        "buy_tax": buy_tax, "sell_tax": sell_tax,
+        "holder_count": gres.get("holder_count"),
+        "owner_percent": owner_pct, "creator_percent": creator_pct,
+        "is_open_source": gres.get("is_open_source"),
+        "lp_locked": gres.get("lp_holders") is not None,
+        "source": "GoPlus token security", "verdict_type": "lite",
+    }
 
 
 @app.get("/api/token/{address}")
