@@ -32,7 +32,7 @@ PAY_TO = "0x299cb831e8580f559e58064d4F145389dB418eCE"
 SOL_NETWORK = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
 SOL_PAY_TO = "DPqdX99NMZL2XFcqwe2WUQ4EmUZgHnVNcmzfND9EEV8K"
 POLY_NETWORK = "eip155:137"  # Polygon  -  #3 rail by accepts (8.3%)
-BASE_RPC = "https://base.publicnode.com"
+BASE_RPC = "https://base-rpc.publicnode.com"
 COINBASE_API = "https://api.coinbase.com/v2"
 
 # --- facilitators: CDP first for official Bazaar indexing, PayAI fallback ---
@@ -923,9 +923,14 @@ async def rpc(method: str, params: list):
 
 @app.get("/api/gas/base")
 async def gas():
-    gp = await rpc("eth_gasPrice", [])
-    blk = await rpc("eth_blockNumber", [])
-    return {"chain": "base", "gas_price_gwei": str(int(gp, 16) / 1e9), "block": int(blk, 16)}
+    try:
+        gp = await rpc("eth_gasPrice", [])
+        blk = await rpc("eth_blockNumber", [])
+        if not gp or not blk:
+            return JSONResponse({"error": "base rpc unavailable"}, status_code=502)
+        return {"chain": "base", "gas_price_gwei": str(int(gp, 16) / 1e9), "block": int(blk, 16)}
+    except Exception as e:
+        return JSONResponse({"error": "base rpc unavailable", "detail": str(e)[:120]}, status_code=502)
 
 
 @app.get("/api/ticker/{symbol}")
