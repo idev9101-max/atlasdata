@@ -691,6 +691,8 @@ def _fnum(v):
 @app.get("/.well-known/402index-verify.txt", include_in_schema=False)
 async def _idx_verify():
     from fastapi.responses import PlainTextResponse
+    if os.getenv("SERVICE_DISPLAY_NAME") == "Prompt Injection Scan":
+        return PlainTextResponse("ab767ee29b9187086b6b182727a68fa1b18757a5d2319758eaf0b45410f34e59")
     return PlainTextResponse("d57f85495f660dec07da072467493068ba08ca7c259985102e24e516ffe077d4")
 
 
@@ -857,14 +859,6 @@ app.openapi = custom_openapi
 async def icon_png():
     from fastapi.responses import FileResponse
     return FileResponse(os.path.join(os.path.dirname(__file__), "icon.png"), media_type="image/png")
-
-
-@app.get("/.well-known/402index-verify.txt", include_in_schema=False)
-async def idx402_verify():
-    from fastapi.responses import PlainTextResponse
-    if os.getenv("SERVICE_DISPLAY_NAME") == "Prompt Injection Scan":
-        return PlainTextResponse("ab767ee29b9187086b6b182727a68fa1b18757a5d2319758eaf0b45410f34e59")
-    return PlainTextResponse("not found", status_code=404)
 
 
 @app.get("/llms.txt")
