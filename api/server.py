@@ -897,6 +897,8 @@ async def llms_txt(request: Request):
         f"- {base}/l402/btc/tip: 10 sats",
         f"- {base}/l402/btc/fees: 10 sats",
         f"- {base}/l402/sol/slot: 10 sats",
+        f"- {base}/l402/security/prompt-injection?text=[text]: 3 sats",
+        f"- {base}/l402/text/pii-redact?text=[text]: 3 sats",
         f"- {base}/l402/report/[slug]: 200 sats (research reports)",
         "",
         "Free sample (no payment):",
@@ -1670,6 +1672,7 @@ except Exception:
 if not _LK.get("LNBITS_ADMINKEY") and _os.environ.get("LNBITS_ADMINKEY"):
     _LK = {"LNBITS_ADMINKEY": _os.environ["LNBITS_ADMINKEY"], "L402_MACAROON_KEY": _os.environ.get("L402_MACAROON_KEY", "")}
 L402_PRICES = {  # sats per endpoint
+    "/l402/text/": 3, "/l402/security/": 3,
     "/l402/price/": 10, "/l402/btc/tip": 10, "/l402/gas": 10, "/l402/sol/slot": 10,
     "/l402/btc/fees": 10, "/l402/btc/whales": 10,
     "/l402/report/": 200,
@@ -1736,6 +1739,16 @@ async def l402_gate(request: Request, call_next):
         status_code=402,
         headers={"WWW-Authenticate": f'L402 macaroon="{token}", invoice="{inv["bolt11"]}"'},
     )
+
+
+@app.get("/l402/security/prompt-injection")
+async def l402_prompt_injection(text: str):
+    return await prompt_injection_detect(text)
+
+
+@app.get("/l402/text/pii-redact")
+async def l402_pii_redact(text: str):
+    return await pii_redact(text)
 
 
 SYMBOL_ALIASES = {"bitcoin": "BTC", "ethereum": "ETH", "solana": "SOL", "dogecoin": "DOGE"}
