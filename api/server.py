@@ -859,6 +859,14 @@ async def icon_png():
     return FileResponse(os.path.join(os.path.dirname(__file__), "icon.png"), media_type="image/png")
 
 
+@app.get("/.well-known/402index-verify.txt", include_in_schema=False)
+async def idx402_verify():
+    from fastapi.responses import PlainTextResponse
+    if os.getenv("SERVICE_DISPLAY_NAME") == "Prompt Injection Scan":
+        return PlainTextResponse("ab767ee29b9187086b6b182727a68fa1b18757a5d2319758eaf0b45410f34e59")
+    return PlainTextResponse("not found", status_code=404)
+
+
 @app.get("/llms.txt")
 async def llms_txt(request: Request):
     base = os.getenv("PUBLIC_BASE_URL", "https://x402atlas.xyz").rstrip("/")
