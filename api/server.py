@@ -2072,22 +2072,26 @@ async def search_web(q: str, limit: int = 8):
         return JSONResponse({"error": "q required"}, status_code=400)
     limit = max(1, min(int(limit or 8), 10))
     try:
-        r = await _client.get("https://html.duckduckgo.com/html/", params={"q": query}, timeout=20,
-                              headers={"User-Agent": "AtlasDataSearch/1.0"})
+        r = await _client.get("https://www.bing.com/search", params={"q": query, "count": limit}, timeout=20,
+                              headers={"User-Agent": "Mozilla/5.0 (compatible; AtlasDataSearch/1.0)"})
     except Exception as e:
         return JSONResponse({"error": "search upstream unavailable", "detail": str(e)[:120]}, status_code=502)
     if r.status_code != 200:
         return JSONResponse({"error": "search upstream unavailable", "status": r.status_code}, status_code=502)
     soup = BeautifulSoup(r.text, "html.parser")
     results = []
-    for node in soup.select(".result")[:limit]:
-        a = node.select_one(".result__a")
-        snip = node.select_one(".result__snippet")
+    for node in soup.select("li.b_algo")[:limit]:
+        a = node.select_one("h2 a")
+        snip = node.select_one(".b_caption p")
         if not a:
             continue
         href = a.get("href") or ""
-        if "uddg=" in href:
-            href = unquote((parse_qs(urlparse(href).query).get("uddg") or [href])[0])
+        encoded = (parse_qs(urlparse(href).query).get("u") or [""])[0]
+        if encoded.startswith("a1"):
+            try:
+                href = base64.urlsafe_b64decode(encoded[2:] + "===").decode("utf-8", "replace")
+            except Exception:
+                pass
         results.append({"title": a.get_text(" ", strip=True), "url": href,
                         "snippet": snip.get_text(" ", strip=True) if snip else ""})
     return {"q": query, "results": results[:limit], "count": len(results[:limit]), "ts": int(time.time())}
