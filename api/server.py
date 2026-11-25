@@ -175,8 +175,8 @@ def paid(price: str, description: str, out_example: dict, input_schema=None, pat
                                extra={"transactionVersions": ["legacy", "v0"]})],
         mime_type="application/json",
         description=description,
-        service_name="AtlasData",
-        icon_url="https://x402atlas.xyz/icon.png",
+        service_name=service_name,
+        icon_url=public_base + "/icon.png",
         tags=list(tags or ["data", "crypto"]) + [t for t in ("agent", "ai") if t not in (tags or [])],
         extensions=ext,
     )
