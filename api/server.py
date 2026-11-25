@@ -33,6 +33,12 @@ SOL_NETWORK = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
 SOL_PAY_TO = "DPqdX99NMZL2XFcqwe2WUQ4EmUZgHnVNcmzfND9EEV8K"
 POLY_NETWORK = "eip155:137"  # Polygon  -  #3 rail by accepts (8.3%)
 BASE_RPC = "https://base-rpc.publicnode.com"
+BASE_RPCS = [
+    BASE_RPC,
+    "https://mainnet.base.org",
+    "https://base.drpc.org",
+    "https://base.meowrpc.com",
+]
 COINBASE_API = "https://api.coinbase.com/v2"
 
 # --- facilitators: CDP first for official Bazaar indexing, PayAI fallback ---
@@ -953,8 +959,21 @@ async def price(symbol: str):
 
 
 async def rpc(method: str, params: list):
-    r = await _client.post(BASE_RPC, json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
-    return r.json().get("result")
+    payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+    last_error = None
+    for endpoint in BASE_RPCS:
+        try:
+            r = await _client.post(endpoint, json=payload, timeout=12,
+                                   headers={"User-Agent": "AtlasData/1.0"})
+            data = r.json()
+            if data.get("result") is not None:
+                return data.get("result")
+            last_error = data.get("error")
+        except Exception as e:
+            last_error = str(e)[:120]
+    if last_error:
+        raise RuntimeError(f"all base rpc endpoints failed: {last_error}")
+    return None
 
 
 @app.get("/api/gas/base")
