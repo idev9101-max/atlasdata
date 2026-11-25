@@ -352,8 +352,8 @@ routes = {
         tags=["security", "prompt-injection", "agent", "llm", "safety"],
     ),
     "GET /api/text/pii-redact": paid(
-        "$0.001", "Detect and redact common PII and secrets in text: emails, phone numbers, SSNs, credit-card-like numbers, IPv4 addresses, bearer tokens, and private-key-like hex. Returns redacted text plus counts by type. Params: text (required). $0.001/call.",
-        {"text": "email me at a@example.com", "redacted": "email me at [EMAIL]", "counts": {"email": 1}},
+        "$0.001", "Detect and redact PII and secrets in text: emails, phone numbers, SSNs, Luhn-validated payment cards, IPv4 addresses, JWTs, AWS keys, bearer tokens, private-key hex, IBANs, and street addresses. Returns redacted text, counts, severity findings, secrets flag, and risk level. Params: text (required). $0.001/call.",
+        {"text": "email me at a@example.com", "redacted": "email me at [EMAIL]", "counts": {"email": 1}, "risk_level": "high"},
         input_schema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
         tags=["pii", "redaction", "security", "text", "privacy", "agent"],
     ),
@@ -2172,22 +2172,53 @@ async def prompt_injection_detect(text: str):
 async def pii_redact(text: str):
     sample = (text or "")[:20000]
     counts = {}
-    rules = [
-        ("email", r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", "[EMAIL]"),
-        ("ssn", r"\b\d{3}-\d{2}-\d{4}\b", "[SSN]"),
-        ("credit_card", r"\b(?:\d[ -]*?){13,19}\b", "[CARD]"),
-        ("phone", r"\b(?:\+?1[-. ]?)?\(?\d{3}\)?[-. ]\d{3}[-. ]\d{4}\b", "[PHONE]"),
-        ("ipv4", r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "[IP]"),
-        ("bearer_token", r"\bBearer\s+[A-Za-z0-9._~+/-]{12,}={0,2}", "Bearer [TOKEN]"),
-        ("private_key_hex", r"\b0x?[0-9a-fA-F]{64}\b", "[PRIVATE_KEY]"),
-    ]
+    findings = []
+
+    def apply_rule(name, pattern, repl, severity="medium", validate=None):
+        nonlocal redacted
+        found = []
+        for m in re.finditer(pattern, redacted, flags=re.IGNORECASE):
+            value = m.group(0)
+            if validate and not validate(value):
+                continue
+            found.append(value[:80])
+        if not found:
+            return
+        counts[name] = counts.get(name, 0) + len(found)
+        findings.append({"type": name, "count": len(found), "severity": severity, "examples_redacted": len(found)})
+        redacted = re.sub(pattern, lambda m: repl if not validate or validate(m.group(0)) else m.group(0), redacted, flags=re.IGNORECASE)
+
+    def luhn_ok(value):
+        digits = [int(c) for c in re.sub(r"\D", "", value)]
+        if not 13 <= len(digits) <= 19:
+            return False
+        total = 0
+        parity = len(digits) % 2
+        for i, d in enumerate(digits):
+            if i % 2 == parity:
+                d *= 2
+                if d > 9:
+                    d -= 9
+            total += d
+        return total % 10 == 0
+
     redacted = sample
-    for name, pattern, repl in rules:
-        matches = re.findall(pattern, redacted, flags=re.IGNORECASE)
-        counts[name] = len(matches)
-        redacted = re.sub(pattern, repl, redacted, flags=re.IGNORECASE)
+    apply_rule("email", r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", "[EMAIL]", "high")
+    apply_rule("ssn", r"\b\d{3}-\d{2}-\d{4}\b", "[SSN]", "high")
+    apply_rule("credit_card", r"\b(?:\d[ -]*?){13,19}\b", "[CARD]", "high", luhn_ok)
+    apply_rule("phone", r"\b(?:\+\d{1,3}[-. ]?)?\(?\d{2,4}\)?[-. ]\d{3,4}[-. ]\d{4}\b", "[PHONE]", "medium")
+    apply_rule("ipv4", r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "[IP]", "low")
+    apply_rule("jwt", r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b", "[JWT]", "high")
+    apply_rule("aws_access_key", r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b", "[AWS_KEY]", "high")
+    apply_rule("bearer_token", r"\bBearer\s+[A-Za-z0-9._~+/-]{12,}={0,2}", "Bearer [TOKEN]", "high")
+    apply_rule("private_key_hex", r"\b0x?[0-9a-fA-F]{64}\b", "[PRIVATE_KEY]", "high")
+    apply_rule("iban", r"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b", "[IBAN]", "medium")
+    apply_rule("street_address", r"\b\d{1,6}\s+[A-Za-z0-9 .'-]{2,40}\s+(?:Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Lane|Ln|Drive|Dr)\b", "[ADDRESS]", "medium")
     counts = {k: v for k, v in counts.items() if v}
-    return {"redacted": redacted, "counts": counts, "pii_found": bool(counts),
+    high = sum(v for k, v in counts.items() if k in ("email", "ssn", "credit_card", "jwt", "aws_access_key", "bearer_token", "private_key_hex"))
+    return {"redacted": redacted, "counts": counts, "findings": findings,
+            "pii_found": bool(counts), "secrets_found": high > 0,
+            "risk_level": "high" if high else "medium" if counts else "low",
             "chars": len(sample), "ts": int(time.time())}
 
 
