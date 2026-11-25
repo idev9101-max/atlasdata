@@ -856,14 +856,15 @@ app.openapi = custom_openapi
 @app.get("/icon.png", include_in_schema=False)
 async def icon_png():
     from fastapi.responses import FileResponse
-    return FileResponse("/home/ubuntu/experiment/api/icon.png", media_type="image/png")
+    return FileResponse(os.path.join(os.path.dirname(__file__), "icon.png"), media_type="image/png")
 
 
 @app.get("/llms.txt")
 async def llms_txt(request: Request):
-    base = "https://x402atlas.xyz"
+    base = os.getenv("PUBLIC_BASE_URL", "https://x402atlas.xyz").rstrip("/")
+    service_name = os.getenv("SERVICE_DISPLAY_NAME", "AtlasData")
     lines = [
-        "# AtlasData",
+        f"# {service_name}",
         "",
         "> Micropaid crypto data + utility API. Every /api/* endpoint is x402-gated:",
         "> pay a fixed USDC price per call on Base, Polygon, Avalanche, Arbitrum, Sei, X Layer, or Solana, receive JSON.",
@@ -902,15 +903,11 @@ async def llms_txt(request: Request):
         f"- {base}/free/price/[symbol]: free spot price, same data as the paid routes",
         f"- {base}/api/x402/census: free x402 market census teaser (41,984 listings stats); full dataset $5 at /api/x402/dataset",
         "",
-        "## ZapAds registry (L402 proxy)",
+        "## Operator",
         "",
-        "- Service: atlasdata-l402-api (self-hosted zapads-proxy, pays to my LNbits wallet)",
-        "- Buyer base: https://excess-require-unified-looksmart.trycloudflare.com",
-        "- Every paid path above is also L402-payable via the proxy: /api/price/*, /api/ticker/*,",
-        "  /api/exchange/*, /api/dex/*, /api/token/*, /api/wallet/*, /api/tx/base/*, /api/block/base/*,",
-        "  /api/chain/* (incl. wallet-report 45 sats), /api/x402/{preflight,discover,pulse} (8-12 sats),",
-        "  /api/text/*, /api/report/* (40-50 sats), /api/market/snapshot (15 sats)",
-        "- Registry listing: https://www.zapads.ai/api/v1/services (provider AtlasData)",
+        f"- Service: {service_name}, operated directly",
+        "- Canonical catalog: https://x402atlas.xyz/.well-known/x402",
+        "- Support: atlasdataeb5a87@fldubai.com",
     ]
     return Response("\n".join(lines) + "\n", media_type="text/plain")
 
