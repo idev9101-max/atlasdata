@@ -2488,7 +2488,13 @@ async def search_web(q: str, limit: int = 8):
         if relevant or results:
             results = relevant
     results = results[:limit]
-    payload = {"q": query, "results": results, "count": len(results), "engine": engine, "ts": int(time.time())}
+    from urllib.parse import quote
+    for row in results:
+        row["read_endpoint"] = "https://x402atlas.xyz/api/web/read?url=" + quote(row.get("url") or "", safe="")
+    payload = {"q": query, "results": results, "count": len(results), "engine": engine, "ts": int(time.time()),
+               "companion_reader": {"endpoint": "https://x402atlas.xyz/api/web/read", "price_usd": 0.001,
+                                     "use": "fetch clean text or PDF extraction for any result URL",
+                                     "operator_disclosure": "AtlasData operates both search and reader endpoints"}}
     if len(cache) > 500:
         cache.clear()
     cache[cache_key] = (now_ts, {"q": query, "results": results, "count": len(results), "engine": engine, "ts": payload["ts"]})
