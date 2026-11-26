@@ -2357,30 +2357,77 @@ async def search_web(q: str, limit: int = 8):
     if not query:
         return JSONResponse({"error": "q required"}, status_code=400)
     limit = max(1, min(int(limit or 8), 10))
-    try:
-        r = await _client.get("https://www.bing.com/search", params={"q": query, "count": limit}, timeout=20,
-                              headers={"User-Agent": "Mozilla/5.0 (compatible; AtlasDataSearch/1.0)"})
-    except Exception as e:
-        return JSONResponse({"error": "search upstream unavailable", "detail": str(e)[:120]}, status_code=502)
-    if r.status_code != 200:
-        return JSONResponse({"error": "search upstream unavailable", "status": r.status_code}, status_code=502)
-    soup = BeautifulSoup(r.text, "html.parser")
-    results = []
-    for node in soup.select("li.b_algo")[:limit]:
-        a = node.select_one("h2 a")
-        snip = node.select_one(".b_caption p")
-        if not a:
-            continue
-        href = a.get("href") or ""
-        encoded = (parse_qs(urlparse(href).query).get("u") or [""])[0]
+    headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"}
+
+    def clean_href(href):
+        href = href or ""
+        parsed = urlparse(href)
+        target = (parse_qs(parsed.query).get("uddg") or [""])[0]
+        if target:
+            return unquote(target)
+        encoded = (parse_qs(parsed.query).get("u") or [""])[0]
         if encoded.startswith("a1"):
             try:
-                href = base64.urlsafe_b64decode(encoded[2:] + "===").decode("utf-8", "replace")
+                return base64.urlsafe_b64decode(encoded[2:] + "===").decode("utf-8", "replace")
             except Exception:
                 pass
-        results.append({"title": a.get_text(" ", strip=True), "url": href,
-                        "snippet": snip.get_text(" ", strip=True) if snip else ""})
-    return {"q": query, "results": results[:limit], "count": len(results[:limit]), "ts": int(time.time())}
+        return href
+
+    async def duckduckgo_results():
+        for url in ("https://html.duckduckgo.com/html/", "https://lite.duckduckgo.com/lite/"):
+            for _ in range(2):
+                try:
+                    r = await _client.get(url, params={"q": query}, timeout=16, headers=headers)
+                except Exception:
+                    break
+                if r.status_code != 200:
+                    continue
+                soup = BeautifulSoup(r.text, "html.parser")
+                rows = []
+                for node in soup.select(".result")[:limit]:
+                    a = node.select_one(".result__a")
+                    snip = node.select_one(".result__snippet")
+                    if a:
+                        rows.append({"title": a.get_text(" ", strip=True), "url": clean_href(a.get("href")),
+                                     "snippet": snip.get_text(" ", strip=True) if snip else ""})
+                if not rows:
+                    for a in soup.select("a.result-link")[:limit]:
+                        snip = ""
+                        row = a.find_parent("tr")
+                        if row:
+                            for sib in row.find_next_siblings("tr", limit=3):
+                                cand = sib.select_one(".result-snippet")
+                                if cand:
+                                    snip = cand.get_text(" ", strip=True)
+                                    break
+                        rows.append({"title": a.get_text(" ", strip=True), "url": clean_href(a.get("href")),
+                                     "snippet": snip})
+                if rows:
+                    return rows
+        return []
+
+    results = await duckduckgo_results()
+    engine = "duckduckgo"
+    if not results:
+        engine = "bing"
+        try:
+            r = await _client.get("https://www.bing.com/search", params={"q": query, "count": limit}, timeout=20,
+                                  headers={"User-Agent": "Mozilla/5.0 (compatible; AtlasDataSearch/1.0)"})
+        except Exception as e:
+            return JSONResponse({"error": "search upstream unavailable", "detail": str(e)[:120]}, status_code=502)
+        if r.status_code != 200:
+            return JSONResponse({"error": "search upstream unavailable", "status": r.status_code}, status_code=502)
+        soup = BeautifulSoup(r.text, "html.parser")
+        results = []
+        for node in soup.select("li.b_algo")[:limit]:
+            a = node.select_one("h2 a")
+            snip = node.select_one(".b_caption p")
+            if not a:
+                continue
+            results.append({"title": a.get_text(" ", strip=True), "url": clean_href(a.get("href")),
+                            "snippet": snip.get_text(" ", strip=True) if snip else ""})
+    results = [row for row in results if row.get("title") and row.get("url")][:limit]
+    return {"q": query, "results": results, "count": len(results), "engine": engine, "ts": int(time.time())}
 
 
 async def _radar_json(path, url, headers=None):
