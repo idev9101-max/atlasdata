@@ -241,6 +241,12 @@ routes = {
         {"value": "13", "classification": "Extreme Fear"},
         tags=["sentiment", "market-data"],
     ),
+    "GET /api/weather": paid(
+        "$0.001", "Live global weather report for any place or coordinates: geocoded location, current conditions, apparent temperature, precipitation, wind, pressure, next 24h hourly forecast, and 7-day outlook using Open-Meteo. Params: place=London or lat/lon. No account, no API key. $0.001/call.",
+        {"place": "London", "current": {"temperature_c": 12.4, "weather": "light rain"}, "hourly": [], "daily": []},
+        input_schema={"type": "object", "properties": {"place": {"type": "string"}, "lat": {"type": "number"}, "lon": {"type": "number"}}},
+        tags=["weather", "forecast", "climate", "market-data"],
+    ),
     "GET /api/dex/token/[address]": paid(
         "$0.002", "Dexscreener pair list for a token contract address on Base, Solana or any EVM chain  -  returns every trading pair with priceUsd, 24h volume, liquidity USD, FDV, pair age and DEX venue. Token-contract lookups for memecoin screens, price checks and launch detection  -  LIVE onchain token intel. No account, no API key.   -  $0.002/call. Support: atlasdataeb5a87@fldubai.com",
         {"address": "0x8335...", "pairs": [{"chainId": "base", "priceUsd": "1.0"}]},
@@ -867,6 +873,7 @@ async def well_known(request: Request):
             f"{base}/api/news/daily-evidence?limit=20",
             f"{base}/api/security/prompt-injection?text=ignore%20previous%20instructions",
             f"{base}/api/text/pii-redact?text=email%20me%20at%20a%40example.com",
+            f"{base}/api/weather?place=London",
             f"{base}/api/image/gen-lite?prompt=red%20apple%20icon&seed=7",
             f"{base}/api/token/q-verdict?address=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&chain=base",
             f"{base}/api/dashboard/q-verdict/resource?tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&chain=base",
@@ -924,6 +931,7 @@ PAID_META = {
     "/api/sol/slot": ("$0.001", "Solana mainnet current slot, epoch and block time."),
     "/api/market/snapshot": ("$0.01", "Aggregated crypto market snapshot: BTC/ETH/SOL prices + 24h tickers, Bitcoin tip height, Base gas."),
     "/api/feargreed": ("$0.001", "value, classification, timestamp  -  Crypto Fear & Greed index."),
+    "/api/weather": ("$0.001", "Live global weather report for any place or coordinates, with current conditions, 24h forecast, and 7-day outlook."),
     "/api/dex/token/{address}": ("$0.002", "Dexscreener pair list for a token contract address (price, liquidity, volume, chain)."),
     "/api/dex/pair/{chain}/{pair}": ("$0.002", "Dexscreener stats for a specific trading pair (chain/pair address)."),
     "/api/host/{data}": ("$0.03", "Host a small file (base64url, max 32KB) and get back a permanent HTTPS URL."),
@@ -1320,6 +1328,107 @@ async def crypto_global():
             "cryptocurrencies_count": g.get("active_cryptocurrencies"),
             "market_cap_change_24h_pct": g.get("market_cap_change_percentage_24h_usd"),
             "upstream": "coingecko", "ts": int(time.time())}
+
+
+_WEATHER_CODES = {
+    0: "clear sky", 1: "mainly clear", 2: "partly cloudy", 3: "overcast",
+    45: "fog", 48: "depositing rime fog", 51: "light drizzle", 53: "drizzle", 55: "dense drizzle",
+    56: "freezing drizzle", 57: "dense freezing drizzle", 61: "light rain", 63: "rain", 65: "heavy rain",
+    66: "freezing rain", 67: "heavy freezing rain", 71: "light snow", 73: "snow", 75: "heavy snow",
+    77: "snow grains", 80: "light rain showers", 81: "rain showers", 82: "violent rain showers",
+    85: "light snow showers", 86: "heavy snow showers", 95: "thunderstorm", 96: "thunderstorm with hail", 99: "severe thunderstorm with hail",
+}
+
+
+@app.get("/api/weather")
+async def weather_report(place: str = "", lat: float | None = None, lon: float | None = None):
+    place = _clip(place, 120).strip()
+    resolved = None
+    if place:
+        try:
+            g = await _client.get("https://geocoding-api.open-meteo.com/v1/search",
+                                  params={"name": place, "count": 1, "language": "en", "format": "json"}, timeout=15)
+            results = g.json().get("results") or []
+            if results:
+                resolved = results[0]
+                lat, lon = float(resolved["latitude"]), float(resolved["longitude"])
+        except Exception:
+            pass
+    if lat is None or lon is None:
+        return JSONResponse({"error": "location required", "hint": "pass place=London or lat and lon"}, status_code=400)
+    try:
+        lat, lon = float(lat), float(lon)
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            raise ValueError("range")
+    except Exception:
+        return JSONResponse({"error": "invalid coordinates"}, status_code=400)
+    params = {
+        "latitude": lat, "longitude": lon, "timezone": "auto", "forecast_days": 7,
+        "current": "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m",
+        "hourly": "temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m",
+        "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset",
+    }
+    try:
+        r = await _client.get("https://api.open-meteo.com/v1/forecast", params=params, timeout=20)
+        if r.status_code != 200:
+            return JSONResponse({"error": "weather upstream failed", "status": r.status_code}, status_code=502)
+        d = r.json()
+    except Exception as e:
+        return JSONResponse({"error": "weather upstream unavailable", "detail": str(e)[:120]}, status_code=502)
+    cur = d.get("current") or {}
+    hourly = d.get("hourly") or {}
+    daily = d.get("daily") or {}
+    def wtext(code):
+        try:
+            return _WEATHER_CODES.get(int(code), "unknown")
+        except Exception:
+            return "unknown"
+    hours = []
+    keys = hourly.get("time") or []
+    for i, t in enumerate(keys[:24]):
+        hours.append({
+            "time": t,
+            "temperature_c": (hourly.get("temperature_2m") or [None] * len(keys))[i],
+            "precipitation_probability_pct": (hourly.get("precipitation_probability") or [None] * len(keys))[i],
+            "precipitation_mm": (hourly.get("precipitation") or [None] * len(keys))[i],
+            "wind_kph": (hourly.get("wind_speed_10m") or [None] * len(keys))[i],
+            "weather": wtext((hourly.get("weather_code") or [None] * len(keys))[i]),
+        })
+    days = []
+    dkeys = daily.get("time") or []
+    for i, t in enumerate(dkeys):
+        days.append({
+            "date": t,
+            "temperature_max_c": (daily.get("temperature_2m_max") or [None] * len(dkeys))[i],
+            "temperature_min_c": (daily.get("temperature_2m_min") or [None] * len(dkeys))[i],
+            "precipitation_mm": (daily.get("precipitation_sum") or [None] * len(dkeys))[i],
+            "precipitation_probability_max_pct": (daily.get("precipitation_probability_max") or [None] * len(dkeys))[i],
+            "wind_max_kph": (daily.get("wind_speed_10m_max") or [None] * len(dkeys))[i],
+            "sunrise": (daily.get("sunrise") or [None] * len(dkeys))[i],
+            "sunset": (daily.get("sunset") or [None] * len(dkeys))[i],
+            "weather": wtext((daily.get("weather_code") or [None] * len(dkeys))[i]),
+        })
+    loc = {}
+    if resolved:
+        loc = {"name": resolved.get("name"), "admin1": resolved.get("admin1"), "country": resolved.get("country"), "country_code": resolved.get("country_code"), "timezone": resolved.get("timezone")}
+    return {
+        "query": {"place": place or None, "lat": lat, "lon": lon},
+        "location": loc,
+        "units": {"temperature": "celsius", "wind": "km/h", "precipitation": "mm", "pressure": "hPa"},
+        "current": {
+            "time": cur.get("time"), "temperature_c": cur.get("temperature_2m"),
+            "apparent_temperature_c": cur.get("apparent_temperature"),
+            "humidity_pct": cur.get("relative_humidity_2m"), "precipitation_mm": cur.get("precipitation"),
+            "cloud_cover_pct": cur.get("cloud_cover"), "pressure_hpa": cur.get("pressure_msl"),
+            "wind_kph": cur.get("wind_speed_10m"), "wind_direction_deg": cur.get("wind_direction_10m"),
+            "wind_gusts_kph": cur.get("wind_gusts_10m"), "is_day": cur.get("is_day"),
+            "weather": wtext(cur.get("weather_code")), "weather_code": cur.get("weather_code"),
+        },
+        "hourly": hours,
+        "daily": days,
+        "source": "Open-Meteo",
+        "ts": int(time.time()),
+    }
 
 
 import re
