@@ -788,6 +788,16 @@ if _qv_post is not None:
     }
     _input["required"] = ["type", "method", "bodyType", "body"]
     _input["properties"] = _props
+    _info = _bz.get("info") or {}
+    _info_input = _info.get("input") or {}
+    if isinstance(_info_input, dict):
+        _info_input.pop("queryParams", None)
+        _info_input["type"] = "http"
+        _info_input["method"] = "POST"
+        _info_input["bodyType"] = "json"
+        _info_input["body"] = {"tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "chain": "base"}
+        _info["input"] = _info_input
+        _bz["info"] = _info
 
 app = FastAPI(title="AtlasData  -  paid micro data API", version="0.1.0")
 if not os.environ.get("FREE_MODE"):
