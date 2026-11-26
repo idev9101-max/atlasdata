@@ -196,7 +196,7 @@ def paid(price: str, description: str, out_example: dict, input_schema=None, pat
     if celo_only:
         ext["eip2612GasSponsoring"] = {"info": {"description": "The facilitator sponsors the EIP-2612 permit to Permit2.", "version": "1"}}
     celo_accepts = _celo_payment_options(price, include_local=celo_only)
-    accepts = celo_accepts if celo_only else [
+    accepts = ([PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=NETWORK, max_timeout_seconds=3600)] + celo_accepts) if celo_only else [
                  PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=NETWORK, max_timeout_seconds=3600),
                  PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=POLY_NETWORK, max_timeout_seconds=3600),
                  *celo_accepts,
