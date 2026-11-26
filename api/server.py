@@ -405,6 +405,12 @@ routes = {
         input_schema={"type": "object", "properties": {"q": {"type": "string"}, "limit": {"type": "integer"}}, "required": ["q"]},
         tags=["web", "search", "retrieval", "agent", "research"],
     ),
+    "GET /api/search/news": paid(
+        "$0.001", "Live Google News search for current-events research: exact headlines, publishers, publication times, source homepages, and article links. Params: q (required), limit optional up to 10. No account, no API key. $0.001/call.",
+        {"q": "x402 payments", "results": [{"title": "...", "source": "CoinDesk", "published": "...", "url": "https://news.google.com/..."}]},
+        input_schema={"type": "object", "properties": {"q": {"type": "string"}, "limit": {"type": "integer"}}, "required": ["q"]},
+        tags=["news", "search", "current-events", "retrieval", "agent", "research"],
+    ),
     "GET /api/agent/work-radar": paid(
         "$0.001", "Live agent-work opportunity radar across make.fun competitions, Taskmarket escrowed tasks, SwarmMemo USDC work, and Superteam Earn bounties. Returns reward, deadline, competition or submission count, eligibility blockers, source links, and a practical priority score for autonomous agents seeking paid work. Params: limit optional up to 30. $0.001/call.",
         {"opportunities": [{"source": "taskmarket", "title": "example", "reward_usd": 10}], "count": 1},
@@ -868,6 +874,7 @@ async def well_known(request: Request):
             f"{base}/x402/random", f"{base}/x402/ip", f"{base}/x402/status",
             f"{base}/x402/network", f"{base}/x402/quote",
             f"{base}/api/search/web?q=x402%20payments&limit=3",
+            f"{base}/api/search/news?q=x402%20payments&limit=3",
             f"{base}/api/web/read?url=https%3A%2F%2Fexample.com",
             f"{base}/api/agent/work-radar?limit=5",
             f"{base}/api/news/daily-evidence?limit=20",
@@ -957,7 +964,8 @@ PAID_META = {
     "/search": ("$0.03", "Alias of /api/x402/discover  -  search all x402 sellers by keyword with demand stats."),
     "/api/x402/search": ("$0.03", "Alias of /api/x402/discover  -  search all x402 sellers by keyword with demand stats."),
     "/api/url/read": ("$0.005", "Fetch a URL and return title + meta description + readable main text (boilerplate stripped, up to 12KB). Params: url."),
-    "/api/search/web": ("$0.001", "Web search for agent research using multiple public search backends. Returns titles, URLs, snippets, count, engine, and companion reader links. Params: q, limit."),
+    "/api/search/news": ("$0.001", "Live Google News search with exact headlines, publishers, publication times, and source links."),
+    "/api/search/web": ("$0.001", "Web search for agent research blended with current news. Returns titles, URLs, snippets, count, engine, and companion reader links. Params: q, limit."),
     "/api/web/read": ("$0.001", "Read a public web page or PDF and return clean extracted text, title, final URL, status, and content type. Params: url, max_chars."),
     "/api/agent/work-radar": ("$0.001", "Live agent-work opportunity radar across make.fun, Taskmarket, SwarmMemo, and Superteam Earn. Params: limit."),
     "/api/news/daily-evidence": ("$0.001", "Same-day global news evidence feed for editorial infographic agents. Params: date, limit."),
@@ -2802,6 +2810,58 @@ async def web_read(url: str, max_chars: int = 12000):
             "title": title, "text": text, "chars": len(text), "ts": int(time.time())}
 
 
+def _parse_google_news_items(xml_bytes, query, limit):
+    import xml.etree.ElementTree as ET
+    rows = []
+    try:
+        root = ET.fromstring(xml_bytes)
+    except Exception:
+        return rows
+    for item in root.findall(".//item")[:limit]:
+        source_el = item.find("source")
+        title = (item.findtext("title") or "").strip()
+        link = (item.findtext("link") or "").strip()
+        source_name = (source_el.text or "").strip() if source_el is not None and source_el.text else ""
+        source_url = (source_el.get("url") or "").strip() if source_el is not None else ""
+        rows.append({
+            "title": title,
+            "url": link,
+            "link_type": "google_news_redirect",
+            "source": source_name,
+            "source_url": source_url,
+            "published": (item.findtext("pubDate") or "").strip(),
+            "snippet": title,
+            "type": "news",
+        })
+    return rows
+
+
+async def _google_news_search(query: str, limit: int = 8):
+    limit = max(1, min(int(limit or 8), 10))
+    try:
+        r = await _client.get("https://news.google.com/rss/search", params={
+            "q": query, "hl": "en-US", "gl": "US", "ceid": "US:en",
+        }, headers={"User-Agent": "Mozilla/5.0 (compatible; AtlasDataNewsSearch/1.0)"}, timeout=18)
+        if r.status_code != 200:
+            return [], f"http {r.status_code}"
+        return _parse_google_news_items(r.content, query, limit), None
+    except Exception as e:
+        return [], str(e)[:140]
+
+
+@app.get("/api/search/news")
+async def search_news(q: str, limit: int = 8):
+    query = (q or "").strip()[:300]
+    if not query:
+        return JSONResponse({"error": "q required"}, status_code=400)
+    rows, err = await _google_news_search(query, limit)
+    if err and not rows:
+        return JSONResponse({"error": "news upstream unavailable", "detail": err}, status_code=502)
+    return {"q": query, "results": rows, "count": len(rows), "engine": "google_news_rss",
+            "note": "url is a Google News redirect; source and source_url identify the publisher",
+            "ts": int(time.time())}
+
+
 @app.get("/api/search/web")
 async def search_web(q: str, limit: int = 8):
     from urllib.parse import urlparse, parse_qs, unquote
@@ -2917,11 +2977,21 @@ async def search_web(q: str, limit: int = 8):
         relevant = [row for row in results if relevance(row) > 0]
         if relevant or results:
             results = relevant
-    results = results[:limit]
+    news_rows, _news_err = await _google_news_search(query, min(4, limit))
+    web_rows = [dict(row, type="web") for row in results]
+    seen_urls = set()
+    merged = []
+    for row in news_rows + web_rows:
+        key = (row.get("url") or "").split("?", 1)[0] + "|" + (row.get("title") or "")[:80].lower()
+        if key in seen_urls:
+            continue
+        seen_urls.add(key)
+        merged.append(row)
+    results = merged[:limit]
     from urllib.parse import quote
     for row in results:
         row["read_endpoint"] = "https://x402atlas.xyz/api/web/read?url=" + quote(row.get("url") or "", safe="")
-    payload = {"q": query, "results": results, "count": len(results), "engine": engine, "ts": int(time.time()),
+    payload = {"q": query, "results": results, "count": len(results), "engine": engine + "+google_news", "ts": int(time.time()),
                "companion_reader": {"endpoint": "https://x402atlas.xyz/api/web/read", "price_usd": 0.001,
                                      "use": "fetch clean text or PDF extraction for any result URL",
                                      "operator_disclosure": "AtlasData operates both search and reader endpoints"}}
@@ -4462,6 +4532,13 @@ MCP_TOOL_DEFS = [
         "tags": ["work", "bounties", "agent"],
     },
     {
+        "name": "news_search",
+        "price": "$0.001",
+        "description": "Search live Google News for current events: exact headlines, publishers, publication times, source homepages, and article links for agent research.",
+        "inputSchema": {"type": "object", "properties": {"q": {"type": "string", "description": "News search query"}, "limit": {"type": "integer", "default": 8, "maximum": 10}}, "required": ["q"]},
+        "tags": ["news", "search", "current-events", "research"],
+    },
+    {
         "name": "weather_report",
         "price": "$0.001",
         "description": "Get live global weather for any place or coordinates: current conditions, apparent temperature, precipitation, wind, pressure, next 24h hourly forecast, and 7-day outlook. Uses Open-Meteo and needs no upstream API key.",
@@ -4554,6 +4631,14 @@ async def _mcp_execute_tool(name, arguments):
         return await web_read(str(arguments.get("url") or ""), min(50000, max(500, int(arguments.get("max_chars") or 12000))))
     if name == "agent_work_radar":
         return await agent_work_radar(min(30, max(1, int(arguments.get("limit") or 12))))
+    if name == "news_search":
+        result = await search_news(str(arguments.get("q") or ""), int(arguments.get("limit") or 8))
+        if isinstance(result, JSONResponse):
+            try:
+                return json.loads(result.body.decode())
+            except Exception:
+                return {"error": "news search request failed", "status": result.status_code}
+        return result
     if name == "weather_report":
         lat = arguments.get("lat")
         lon = arguments.get("lon")
