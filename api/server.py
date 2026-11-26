@@ -2836,6 +2836,41 @@ def _parse_google_news_items(xml_bytes, query, limit):
     return rows
 
 
+async def _decode_google_news_link(link: str):
+    match = re.search(r"/articles/([^?&#]+)", link or "")
+    if not match:
+        return None
+    article_id = match.group(1)
+    try:
+        page = await _client.get(f"https://news.google.com/articles/{article_id}",
+                                 headers={"User-Agent": "Mozilla/5.0 (compatible; AtlasDataNewsSearch/1.0)"}, timeout=15, follow_redirects=True)
+        if page.status_code != 200:
+            return None
+        sig_match = re.search(r'data-n-a-sg="([^"]+)', page.text)
+        ts_match = re.search(r'data-n-a-ts="([^"]+)', page.text)
+        if not sig_match or not ts_match:
+            return None
+        payload = [
+            "Fbv4je",
+            f'["garturlreq",[["X","X",["X","X"],null,null,1,1,"US:en",null,1,null,null,null,null,null,0,1],"X","X",1,[1,1,1],1,1,null,0,0,null,0],"{article_id}",{ts_match.group(1)},"{sig_match.group(1)}"]',
+        ]
+        from urllib.parse import quote
+        rpc = await _client.post(
+            "https://news.google.com/_/DotsSplashUi/data/batchexecute",
+            headers={"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8", "User-Agent": "Mozilla/5.0"},
+            data=f"f.req={quote(json.dumps([[payload]]))}", timeout=15,
+        )
+        if rpc.status_code != 200:
+            return None
+        parsed = json.loads(rpc.text.split("\n\n")[1])[:-2]
+        decoded = json.loads(parsed[0][2])[1]
+        if isinstance(decoded, str) and decoded.startswith(("http://", "https://")):
+            return decoded
+    except Exception:
+        return None
+    return None
+
+
 async def _google_news_search(query: str, limit: int = 8):
     limit = max(1, min(int(limit or 8), 10))
     try:
@@ -2844,7 +2879,18 @@ async def _google_news_search(query: str, limit: int = 8):
         }, headers={"User-Agent": "Mozilla/5.0 (compatible; AtlasDataNewsSearch/1.0)"}, timeout=18)
         if r.status_code != 200:
             return [], f"http {r.status_code}"
-        return _parse_google_news_items(r.content, query, limit), None
+        rows = _parse_google_news_items(r.content, query, limit)
+
+        async def decode_row(row):
+            direct = await _decode_google_news_link(row.get("url") or "")
+            if direct:
+                row["google_news_url"] = row.get("url")
+                row["url"] = direct
+                row["link_type"] = "direct"
+
+        if rows:
+            await asyncio.gather(*(decode_row(row) for row in rows))
+        return rows, None
     except Exception as e:
         return [], str(e)[:140]
 
@@ -2858,7 +2904,7 @@ async def search_news(q: str, limit: int = 8):
     if err and not rows:
         return JSONResponse({"error": "news upstream unavailable", "detail": err}, status_code=502)
     return {"q": query, "results": rows, "count": len(rows), "engine": "google_news_rss",
-            "note": "url is a Google News redirect; source and source_url identify the publisher",
+            "note": "url is the decoded publisher URL when decoding succeeds; google_news_url preserves the redirect provenance",
             "ts": int(time.time())}
 
 
@@ -2990,7 +3036,7 @@ async def search_web(q: str, limit: int = 8):
     results = merged[:limit]
     from urllib.parse import quote
     for row in results:
-        if row.get("type") != "news":
+        if row.get("type") != "news" or "news.google.com" not in (row.get("url") or ""):
             row["read_endpoint"] = "https://x402atlas.xyz/api/web/read?url=" + quote(row.get("url") or "", safe="")
     payload = {"q": query, "results": results, "count": len(results), "engine": engine + "+google_news", "ts": int(time.time()),
                "companion_reader": {"endpoint": "https://x402atlas.xyz/api/web/read", "price_usd": 0.001,
