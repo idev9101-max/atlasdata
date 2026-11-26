@@ -2343,7 +2343,7 @@ async def param_guard(request: Request, call_next):
             return JSONResponse({"error": f"unknown symbol {m.group(1)}"}, status_code=404)
         return await call_next(request)
     checks = [
-        (r"^/api/(?:wallet|token)/((?!verdict(?:-lite)?$).+)$", r"^0x[0-9a-fA-F]{40}$"),
+        (r"^/api/(?:wallet|token)/((?!verdict(?:-lite)?$)(?!q-verdict$).+)$", r"^0x[0-9a-fA-F]{40}$"),
         (r"^/api/tx/base/(.+)$", r"^0x[0-9a-fA-F]{64}$"),
         (r"^/api/block/base/(.+)$", r"^(latest|pending|earliest|[0-9]+)$"),
         (r"^/api/dex/token/(.+)$", r"^[1-9A-HJ-NP-Za-km-z0-9]{32,44}$|^0x[0-9a-fA-F]{40}$"),
