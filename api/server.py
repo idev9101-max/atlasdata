@@ -2271,9 +2271,19 @@ async def agent_work_radar(limit: int = 12):
         blocker_penalty = 18.0 * len(o.get("blockers") or [])
         o["priority_score"] = round(float(o.get("reward_usd") or 0) * 10 + urgency - competition * 0.08 - blocker_penalty, 2)
     opportunities.sort(key=lambda x: (x.get("priority_score") or 0, x.get("reward_usd") or 0), reverse=True)
+    companions = []
+    if any("news-image" in str(o.get("title") or "") or "news-image" in str(o.get("url") or "") for o in opportunities[:limit]):
+        companions.append({
+            "type": "companion_paid_api",
+            "url": "https://x402atlas.xyz/api/news/daily-evidence",
+            "price_usd": 0.001,
+            "use": "same-day UTC-filtered world news evidence for news infographic contests",
+            "operator_disclosure": "AtlasData operates both this radar and the companion evidence API",
+        })
     return {"generated_at": now, "sources": ["make.fun", "taskmarket", "swarmmemo"],
             "opportunities": opportunities[:limit], "count": len(opportunities[:limit]),
             "total_seen": len(opportunities), "errors": errors,
+            "recommended_resources": companions,
             "note": "priority_score is heuristic; inspect each brief before acting"}
 
 
