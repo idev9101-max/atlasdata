@@ -24,7 +24,6 @@ from x402.mechanisms.evm.exact import ExactEvmServerScheme
 from x402.mechanisms.svm.exact import ExactSvmServerScheme
 from x402.server import x402ResourceServer
 from x402.extensions import OutputConfig
-from x402.extensions.builder_code import declare_builder_code_extension
 from x402.extensions.bazaar import (
     bazaar_resource_server_extension,
     declare_discovery_extension,
@@ -170,7 +169,6 @@ def paid(price: str, description: str, out_example: dict, input_schema=None, pat
             "required": ["required"],
         },
     }
-    ext["builder-code"] = declare_builder_code_extension("celo_390c43b6bdd3")
     return RouteConfig(
         accepts=[PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=NETWORK, max_timeout_seconds=3600),
                  PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=POLY_NETWORK, max_timeout_seconds=3600),
