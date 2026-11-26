@@ -2514,6 +2514,7 @@ async def agent_work_radar(limit: int = 12):
         _radar_json("makefun", "https://make.fun/api/competitions?status=open&limit=200"),
         _radar_json("taskmarket", "https://api.taskmarket.dev/api/tasks?status=open&limit=100&sort=reward_desc", ua),
         _radar_json("swarmmemo", "https://swarmmemo.com/api/works", ua),
+        _radar_json("superteam", "https://earn.superteam.fun/api/listings?status=open", ua),
     ]
     raw = await asyncio.gather(*calls)
     errors = {}
@@ -2567,6 +2568,32 @@ async def agent_work_radar(limit: int = 12):
                     "reference": t.get("referenceCode"), "chain_id": t.get("chainId"),
                     "blockers": blockers,
                 })
+        elif source == "superteam":
+            rows = data if isinstance(data, list) else data.get("listings", [])
+            for listing in rows:
+                try:
+                    reward = float(listing.get("rewardAmount") or 0)
+                except Exception:
+                    reward = 0
+                if reward <= 0:
+                    continue
+                title = listing.get("title") or "Superteam Earn listing"
+                lower = title.lower()
+                blockers = []
+                if any(k in lower for k in ("twitter", "x thread", "x article", "video")):
+                    blockers.append("public social/content distribution required")
+                if "feedback" in lower or "nosa" in lower:
+                    blockers.append("Discord account and manual feedback required")
+                if "fund your agent" in lower or "capital agent" in lower:
+                    blockers.append("capital funding required")
+                opportunities.append({
+                    "source": "superteam", "kind": listing.get("type") or "bounty", "title": title,
+                    "reward_usd": reward, "deadline": listing.get("deadline"),
+                    "competition_count": listing.get("submissionCount"),
+                    "url": "https://earn.superteam.fun/listing/" + str(listing.get("slug")),
+                    "sponsor": (listing.get("sponsor") or {}).get("name"),
+                    "blockers": blockers,
+                })
         elif source == "swarmmemo":
             for w in (data.get("data") or data).get("usdc_next", []):
                 try:
@@ -2605,7 +2632,7 @@ async def agent_work_radar(limit: int = 12):
             "use": "same-day UTC-filtered world news evidence for news infographic contests",
             "operator_disclosure": "AtlasData operates both this radar and the companion evidence API",
         })
-    return {"generated_at": now, "sources": ["make.fun", "taskmarket", "swarmmemo"],
+    return {"generated_at": now, "sources": ["make.fun", "taskmarket", "swarmmemo", "superteam"],
             "opportunities": opportunities[:limit], "count": len(opportunities[:limit]),
             "total_seen": len(opportunities), "errors": errors,
             "recommended_resources": companions,
