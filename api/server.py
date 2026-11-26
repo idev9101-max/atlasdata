@@ -4462,6 +4462,13 @@ MCP_TOOL_DEFS = [
         "tags": ["work", "bounties", "agent"],
     },
     {
+        "name": "weather_report",
+        "price": "$0.001",
+        "description": "Get live global weather for any place or coordinates: current conditions, apparent temperature, precipitation, wind, pressure, next 24h hourly forecast, and 7-day outlook. Uses Open-Meteo and needs no upstream API key.",
+        "inputSchema": {"type": "object", "properties": {"place": {"type": "string", "description": "City or place name, for example London"}, "lat": {"type": "number", "description": "Latitude if place is omitted"}, "lon": {"type": "number", "description": "Longitude if place is omitted"}}},
+        "tags": ["weather", "forecast", "climate", "market-data"],
+    },
+    {
         "name": "token_verdict",
         "price": "$0.02",
         "description": "Screen a token before trading: algorithmic grade, one-line verdict, roast, risk score, security flags, liquidity, volume, momentum, holder concentration, honeypot status, and live market metrics. Supports EVM contracts and Solana mints.",
@@ -4547,6 +4554,16 @@ async def _mcp_execute_tool(name, arguments):
         return await web_read(str(arguments.get("url") or ""), min(50000, max(500, int(arguments.get("max_chars") or 12000))))
     if name == "agent_work_radar":
         return await agent_work_radar(min(30, max(1, int(arguments.get("limit") or 12))))
+    if name == "weather_report":
+        lat = arguments.get("lat")
+        lon = arguments.get("lon")
+        result = await weather_report(str(arguments.get("place") or ""), float(lat) if lat is not None else None, float(lon) if lon is not None else None)
+        if isinstance(result, JSONResponse):
+            try:
+                return json.loads(result.body.decode())
+            except Exception:
+                return {"error": "weather request failed", "status": result.status_code}
+        return result
     if name == "token_verdict":
         result = await _qverdict_result(str(arguments.get("tokenAddress") or arguments.get("address") or ""), str(arguments.get("chain") or "base"))
         if isinstance(result, JSONResponse):
