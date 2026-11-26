@@ -2990,7 +2990,8 @@ async def search_web(q: str, limit: int = 8):
     results = merged[:limit]
     from urllib.parse import quote
     for row in results:
-        row["read_endpoint"] = "https://x402atlas.xyz/api/web/read?url=" + quote(row.get("url") or "", safe="")
+        if row.get("type") != "news":
+            row["read_endpoint"] = "https://x402atlas.xyz/api/web/read?url=" + quote(row.get("url") or "", safe="")
     payload = {"q": query, "results": results, "count": len(results), "engine": engine + "+google_news", "ts": int(time.time()),
                "companion_reader": {"endpoint": "https://x402atlas.xyz/api/web/read", "price_usd": 0.001,
                                      "use": "fetch clean text or PDF extraction for any result URL",
