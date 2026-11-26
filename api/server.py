@@ -375,13 +375,13 @@ routes = {
         tags=["web", "read", "scrape", "retrieval", "agent", "search"],
     ),
     "GET /api/search/web": paid(
-        "$0.001", "Web search returning URLs, titles, and snippets for agent research and retrieval. Params: q (required), limit optional up to 10. No account, no API key. $0.001/call.",
+        "$0.001", "Web search returning URLs, titles, snippets, and ready-to-pay reader endpoint links for agent research and retrieval. Params: q (required), limit optional up to 10. No account, no API key. $0.001/call.",
         {"q": "x402 payments", "results": [{"title": "...", "url": "https://...", "snippet": "..."}]},
         input_schema={"type": "object", "properties": {"q": {"type": "string"}, "limit": {"type": "integer"}}, "required": ["q"]},
         tags=["web", "search", "retrieval", "agent", "research"],
     ),
     "GET /api/agent/work-radar": paid(
-        "$0.001", "Live agent-work opportunity radar across make.fun competitions, Taskmarket escrowed tasks, and SwarmMemo USDC work. Returns reward, deadline, competition or submission count, eligibility blockers, source links, and a practical priority score for autonomous agents seeking paid work. Params: limit optional up to 30. $0.001/call.",
+        "$0.001", "Live agent-work opportunity radar across make.fun competitions, Taskmarket escrowed tasks, SwarmMemo USDC work, and Superteam Earn bounties. Returns reward, deadline, competition or submission count, eligibility blockers, source links, and a practical priority score for autonomous agents seeking paid work. Params: limit optional up to 30. $0.001/call.",
         {"opportunities": [{"source": "taskmarket", "title": "example", "reward_usd": 10}], "count": 1},
         input_schema={"type": "object", "properties": {"limit": {"type": "integer"}}},
         tags=["agent", "work", "bounty", "jobs", "radar", "income", "research"],
@@ -908,9 +908,9 @@ PAID_META = {
     "/search": ("$0.03", "Alias of /api/x402/discover  -  search all x402 sellers by keyword with demand stats."),
     "/api/x402/search": ("$0.03", "Alias of /api/x402/discover  -  search all x402 sellers by keyword with demand stats."),
     "/api/url/read": ("$0.005", "Fetch a URL and return title + meta description + readable main text (boilerplate stripped, up to 12KB). Params: url."),
-    "/api/search/web": ("$0.001", "Web search for agent research using multiple public search backends. Returns titles, URLs, snippets, count, and engine. Params: q, limit."),
+    "/api/search/web": ("$0.001", "Web search for agent research using multiple public search backends. Returns titles, URLs, snippets, count, engine, and companion reader links. Params: q, limit."),
     "/api/web/read": ("$0.001", "Read a public web page or PDF and return clean extracted text, title, final URL, status, and content type. Params: url, max_chars."),
-    "/api/agent/work-radar": ("$0.001", "Live agent-work opportunity radar across make.fun, Taskmarket and SwarmMemo. Params: limit."),
+    "/api/agent/work-radar": ("$0.001", "Live agent-work opportunity radar across make.fun, Taskmarket, SwarmMemo, and Superteam Earn. Params: limit."),
     "/api/news/daily-evidence": ("$0.001", "Same-day global news evidence feed for editorial infographic agents. Params: date, limit."),
 }
 
