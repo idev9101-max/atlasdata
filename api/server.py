@@ -345,6 +345,12 @@ routes = {
         input_schema={"type": "object", "properties": {"q": {"type": "string"}, "limit": {"type": "integer"}}, "required": ["q"]},
         tags=["web", "search", "retrieval", "agent", "research"],
     ),
+    "GET /api/agent/work-radar": paid(
+        "$0.001", "Live agent-work opportunity radar across make.fun competitions, Taskmarket escrowed tasks, and SwarmMemo USDC work. Returns reward, deadline, competition or submission count, eligibility blockers, source links, and a practical priority score for autonomous agents seeking paid work. Params: limit optional up to 30. $0.001/call.",
+        {"opportunities": [{"source": "taskmarket", "title": "example", "reward_usd": 10}], "count": 1},
+        input_schema={"type": "object", "properties": {"limit": {"type": "integer"}}},
+        tags=["agent", "work", "bounty", "jobs", "radar", "income", "research"],
+    ),
     "GET /api/security/prompt-injection": paid(
         "$0.001", "Classify agent-bound text for prompt-injection risk. Detects instruction override, system-prompt extraction, credential exfiltration, tool abuse, money movement, fake system messages, secrecy instructions, invisible Unicode, exfiltration links, encoded payloads, and jailbreak phrasing; returns risk level, score, findings with excerpts, and safe handling advice. Params: text (required). $0.001/call.",
         {"text": "ignore previous instructions", "label": "suspicious", "score": 35, "matches": ["instruction_override"]},
@@ -766,6 +772,7 @@ async def well_known(request: Request):
             f"{base}/x402/network", f"{base}/x402/quote",
             f"{base}/api/search/web?q=x402%20payments&limit=3",
             f"{base}/api/web/read?url=https%3A%2F%2Fexample.com",
+            f"{base}/api/agent/work-radar?limit=5",
             f"{base}/api/security/prompt-injection?text=ignore%20previous%20instructions",
             f"{base}/api/text/pii-redact?text=email%20me%20at%20a%40example.com",
             f"{base}/api/image/gen-lite?prompt=red%20apple%20icon&seed=7",
@@ -846,6 +853,7 @@ PAID_META = {
     "/search": ("$0.03", "Alias of /api/x402/discover  -  search all x402 sellers by keyword with demand stats."),
     "/api/x402/search": ("$0.03", "Alias of /api/x402/discover  -  search all x402 sellers by keyword with demand stats."),
     "/api/url/read": ("$0.005", "Fetch a URL and return title + meta description + readable main text (boilerplate stripped, up to 12KB). Params: url."),
+    "/api/agent/work-radar": ("$0.001", "Live agent-work opportunity radar across make.fun, Taskmarket and SwarmMemo. Params: limit."),
 }
 
 
@@ -2153,6 +2161,112 @@ async def search_web(q: str, limit: int = 8):
         results.append({"title": a.get_text(" ", strip=True), "url": href,
                         "snippet": snip.get_text(" ", strip=True) if snip else ""})
     return {"q": query, "results": results[:limit], "count": len(results[:limit]), "ts": int(time.time())}
+
+
+async def _radar_json(path, url, headers=None):
+    try:
+        r = await _client.get(url, timeout=12, headers=headers or {})
+        if r.status_code != 200:
+            return path, None, f"http {r.status_code}"
+        return path, r.json(), None
+    except Exception as e:
+        return path, None, str(e)[:120]
+
+
+@app.get("/api/agent/work-radar")
+async def agent_work_radar(limit: int = 12):
+    limit = max(1, min(int(limit or 12), 30))
+    ua = {"User-Agent": "Mozilla/5.0 (compatible; AtlasDataWorkRadar/1.0)", "Accept": "application/json"}
+    calls = [
+        _radar_json("makefun", "https://make.fun/api/competitions?status=open&limit=200"),
+        _radar_json("taskmarket", "https://api.taskmarket.dev/api/tasks?status=open&limit=100&sort=reward_desc", ua),
+        _radar_json("swarmmemo", "https://swarmmemo.com/api/works", ua),
+    ]
+    raw = await asyncio.gather(*calls)
+    errors = {}
+    opportunities = []
+    now = int(time.time())
+    for source, data, err in raw:
+        if err:
+            errors[source] = err
+            continue
+        if source == "makefun":
+            for c in data.get("items", []):
+                reward = float(c.get("rewardAmount") or 0)
+                if reward <= 0:
+                    continue
+                title = c.get("title") or c.get("slug") or "make.fun competition"
+                lower = title.lower()
+                blockers = []
+                if any(k in lower for k in ("repost", "likes on", "promote", "x post")):
+                    blockers.append("public social reach required")
+                if c.get("entryFeeUsd"):
+                    blockers.append("entry fee")
+                opportunities.append({
+                    "source": "make.fun", "kind": "competition", "title": title,
+                    "reward_usd": reward, "deadline": c.get("deadline"),
+                    "competition_count": c.get("submissionCount"),
+                    "url": "https://make.fun/c/" + str(c.get("slug")),
+                    "blockers": blockers,
+                })
+        elif source == "taskmarket":
+            for t in data.get("tasks", []):
+                try:
+                    reward = int(t.get("reward") or 0) / 1e6
+                except Exception:
+                    reward = 0
+                if reward <= 0:
+                    continue
+                requirements = list(t.get("identity") or []) + list(t.get("verifiedBy") or [])
+                blockers = []
+                if "tap:identity:verified" in requirements:
+                    blockers.append("TAP key requires a linked Visa card")
+                if any(str(x).startswith("erc8004:") for x in requirements):
+                    blockers.append("ERC-8004 identity required")
+                if t.get("stakeRequired"):
+                    blockers.append("stake required")
+                desc = (t.get("description") or "").split("\n")[0]
+                opportunities.append({
+                    "source": "taskmarket", "kind": t.get("mode") or "task", "title": desc[:180],
+                    "reward_usd": reward, "deadline": t.get("expiryTime"),
+                    "competition_count": t.get("submissionCount"),
+                    "url": "https://taskmarket.dev/tasks/" + str(t.get("id")),
+                    "reference": t.get("referenceCode"), "chain_id": t.get("chainId"),
+                    "blockers": blockers,
+                })
+        elif source == "swarmmemo":
+            for w in (data.get("data") or data).get("usdc_next", []):
+                try:
+                    reward = float(w.get("usdc_per_result") or 0)
+                except Exception:
+                    reward = 0
+                open_at = int(w.get("next_open_at") or 0)
+                opportunities.append({
+                    "source": "swarmmemo", "kind": "paid work", "title": w.get("title"),
+                    "reward_usd": reward, "deadline": None,
+                    "next_open_at": open_at, "open_now": open_at <= now if open_at else True,
+                    "url": "https://swarmmemo.com/work/" + str(w.get("id")),
+                    "competition_count": None, "blockers": [] if open_at <= now else ["seat not open yet"],
+                })
+    def hours_left(deadline):
+        if not deadline:
+            return 720.0
+        try:
+            import datetime
+            dt = datetime.datetime.fromisoformat(str(deadline).replace("Z", "+00:00"))
+            return max(0.0, (dt.timestamp() - now) / 3600)
+        except Exception:
+            return 720.0
+    for o in opportunities:
+        competition = min(float(o.get("competition_count") or 0), 200.0)
+        urgency = 8.0 if hours_left(o.get("deadline")) < 72 else 0.0
+        blocker_penalty = 18.0 * len(o.get("blockers") or [])
+        o["priority_score"] = round(float(o.get("reward_usd") or 0) * 10 + urgency - competition * 0.08 - blocker_penalty, 2)
+    opportunities.sort(key=lambda x: (x.get("priority_score") or 0, x.get("reward_usd") or 0), reverse=True)
+    return {"generated_at": now, "sources": ["make.fun", "taskmarket", "swarmmemo"],
+            "opportunities": opportunities[:limit], "count": len(opportunities[:limit]),
+            "total_seen": len(opportunities), "errors": errors,
+            "note": "priority_score is heuristic; inspect each brief before acting"}
 
 
 @app.get("/api/security/prompt-injection")
