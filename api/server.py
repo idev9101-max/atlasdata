@@ -4352,6 +4352,13 @@ MCP_TOOL_DEFS = [
         "inputSchema": {"type": "object", "properties": {"limit": {"type": "integer", "default": 12, "minimum": 1, "maximum": 30}}},
         "tags": ["work", "bounties", "agent"],
     },
+    {
+        "name": "token_verdict",
+        "price": "$0.02",
+        "description": "Screen a token before trading: algorithmic grade, one-line verdict, roast, risk score, security flags, liquidity, volume, momentum, holder concentration, honeypot status, and live market metrics. Supports EVM contracts and Solana mints.",
+        "inputSchema": {"type": "object", "properties": {"tokenAddress": {"type": "string", "description": "EVM 0x contract or Solana mint"}, "address": {"type": "string", "description": "Alias of tokenAddress"}, "chain": {"type": "string", "default": "base", "examples": ["base", "ethereum", "bsc", "polygon", "arbitrum", "avalanche", "optimism", "solana"]}}, "required": ["tokenAddress"]},
+        "tags": ["token", "security", "market-data", "verdict"],
+    },
 ]
 
 
@@ -4431,6 +4438,14 @@ async def _mcp_execute_tool(name, arguments):
         return await web_read(str(arguments.get("url") or ""), min(50000, max(500, int(arguments.get("max_chars") or 12000))))
     if name == "agent_work_radar":
         return await agent_work_radar(min(30, max(1, int(arguments.get("limit") or 12))))
+    if name == "token_verdict":
+        result = await _qverdict_result(str(arguments.get("tokenAddress") or arguments.get("address") or ""), str(arguments.get("chain") or "base"))
+        if isinstance(result, JSONResponse):
+            try:
+                return json.loads(result.body.decode())
+            except Exception:
+                return {"error": "token verdict request failed", "status": result.status_code}
+        return result
     raise ValueError("unknown tool")
 
 
