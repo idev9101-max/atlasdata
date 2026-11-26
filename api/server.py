@@ -892,7 +892,7 @@ def custom_openapi():
                        description="Micropaid crypto data + utility API. Pay per call in USDC on Base via x402.",
                        routes=app.routes)
     schema["info"]["x-guidance"] = (
-        "All /api/* endpoints are x402-paid in USDC on Base mainnet (eip155:8453). "
+        "All /api/* endpoints are x402-paid on Base mainnet and other advertised networks including Celo. "
         "GET requests only. Pay, then retry with the payment signature to receive data. "
         "/api/report/x402-monetization returns a full markdown report."
     )
@@ -928,7 +928,7 @@ async def llms_txt(request: Request):
         f"# {service_name}",
         "",
         "> Micropaid crypto data + utility API. Every /api/* endpoint is x402-gated:",
-        "> pay a fixed USDC price per call on Base, Polygon, Avalanche, Arbitrum, Sei, X Layer, or Solana, receive JSON.",
+        "> pay a fixed stablecoin price per call on Base, Celo, Polygon, Avalanche, Arbitrum, Sei, X Layer, or Solana, receive JSON.",
         "",
         "## How to buy",
         "",
@@ -973,6 +973,24 @@ async def llms_txt(request: Request):
         "- Support: atlasdataeb5a87@fldubai.com",
     ]
     return Response("\n".join(lines) + "\n", media_type="text/plain")
+
+
+@app.get("/terms", include_in_schema=False)
+async def terms_page():
+    html = """<!doctype html><html><head><meta charset='utf-8'><title>AtlasData Terms and Support</title></head><body style='font-family:sans-serif;max-width:760px;margin:40px auto;line-height:1.55'>
+<h1>AtlasData Terms and Support</h1>
+<p>AtlasData is a pay-per-call machine API operated directly by the AtlasData project. Each successful response is sold as digital data or computation at the price shown in the x402 payment challenge.</p>
+<p>Payments are final once settled. If a paid call fails after settlement, returns an invalid response, or is charged twice for the same logical request, contact support with the settlement transaction hash, endpoint, timestamp, and request parameters. We will investigate and provide a replacement response or manual refund when the failure is confirmed.</p>
+<p>The API is provided as is, without financial, legal, or professional advice. Buyers are responsible for deciding whether the data is suitable for their use. Abuse, credential attacks, and attempts to bypass payment are prohibited.</p>
+<p>Support: <a href='mailto:atlasdataeb5a87@fldubai.com'>atlasdataeb5a87@fldubai.com</a></p>
+</body></html>"""
+    return Response(html, media_type="text/html")
+
+
+@app.get("/support", include_in_schema=False)
+async def support_page():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse("/terms", status_code=302)
 
 
 @app.get("/census", include_in_schema=False)
