@@ -169,6 +169,18 @@ def paid(price: str, description: str, out_example: dict, input_schema=None, pat
             "required": ["required"],
         },
     }
+    ext["builder-code"] = {
+        "info": {"required": False},
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "code": {"type": "string", "minLength": 1, "maxLength": 64},
+                "required": {"type": "boolean"},
+            },
+            "required": ["required"],
+        },
+    }
     return RouteConfig(
         accepts=[PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=NETWORK, max_timeout_seconds=3600),
                  PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=POLY_NETWORK, max_timeout_seconds=3600),
@@ -973,25 +985,6 @@ async def terms_page():
 <p>Support: <a href='mailto:atlasdataeb5a87@fldubai.com'>atlasdataeb5a87@fldubai.com</a></p>
 </body></html>"""
     return Response(html, media_type="text/html")
-
-
-@app.get("/agent.json", include_in_schema=False)
-@app.get("/.well-known/agent.json", include_in_schema=False)
-async def agent_registration_file():
-    return {
-        "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
-        "name": "AtlasData Agent API",
-        "description": "Pay-per-call machine data and agent security API using x402 stablecoin payments on Celo and other networks.",
-        "image": "https://x402atlas.xyz/icon.png",
-        "services": [
-            {"name": "web", "endpoint": "https://x402atlas.xyz"},
-            {"name": "x402", "endpoint": "https://x402atlas.xyz/.well-known/x402"},
-            {"name": "openapi", "endpoint": "https://x402atlas.xyz/openapi.json"},
-        ],
-        "x402Support": True,
-        "active": True,
-        "supportedTrust": ["reputation"],
-    }
 
 
 @app.get("/support", include_in_schema=False)
