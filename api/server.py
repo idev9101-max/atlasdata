@@ -369,7 +369,7 @@ routes = {
         tags=["llm", "ai", "inference", "chat", "completions", "openai", "agent"],
     ),
     "GET /api/web/read": paid(
-        "$0.001", "Read a public web page and extract clean readable text: title, final URL, status, main text with navigation/scripts removed. Useful for agent browsing, research, summarization, and retrieval. Params: url (required), max_chars optional. No account, no API key. $0.001/call.",
+        "$0.001", "Read a public web page or PDF and extract clean readable text: title, final URL, status, main text with navigation/scripts removed. Useful for agent browsing, document research, summarization, and retrieval. Params: url (required), max_chars optional. No account, no API key. $0.001/call.",
         {"url": "https://example.com", "title": "Example", "text": "...", "chars": 1200},
         input_schema={"type": "object", "properties": {"url": {"type": "string"}, "max_chars": {"type": "integer"}}, "required": ["url"]},
         tags=["web", "read", "scrape", "retrieval", "agent", "search"],
@@ -2335,6 +2335,27 @@ async def web_read(url: str, max_chars: int = 12000):
     if r.status_code >= 400:
         return JSONResponse({"error": "upstream status", "status": r.status_code, "final_url": current}, status_code=502)
     ctype = r.headers.get("content-type", "")
+    is_pdf = "pdf" in ctype.lower() or current.lower().split("?", 1)[0].endswith(".pdf") or r.content[:5] == b"%PDF-"
+    if is_pdf:
+        if len(r.content) > 15 * 1024 * 1024:
+            return JSONResponse({"error": "pdf too large", "bytes": len(r.content), "final_url": current}, status_code=413)
+        try:
+            import io
+            from pypdf import PdfReader
+            reader = PdfReader(io.BytesIO(r.content))
+            parts = []
+            for page in reader.pages[:30]:
+                parts.append(page.extract_text() or "")
+                if sum(len(part) for part in parts) >= max_chars:
+                    break
+            text = "\n\n".join(part.strip() for part in parts if part.strip())[:max_chars]
+            meta = getattr(reader, "metadata", None) or {}
+            title = str(meta.get("/Title") or "")[:300]
+            return {"url": url, "final_url": current, "status": r.status_code, "content_type": ctype,
+                    "title": title, "text": text, "chars": len(text), "pages": len(reader.pages),
+                    "extractor": "pypdf", "ts": int(time.time())}
+        except Exception as e:
+            return JSONResponse({"error": "pdf extraction failed", "detail": str(e)[:160], "final_url": current}, status_code=502)
     if "html" not in ctype:
         text = r.text[:max_chars]
         return {"url": url, "final_url": current, "status": r.status_code, "content_type": ctype,

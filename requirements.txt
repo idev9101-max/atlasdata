@@ -9,3 +9,4 @@ pymacaroons
 qrcode
 pillow
 beautifulsoup4
+pypdf>=5.1.0
