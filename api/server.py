@@ -587,6 +587,11 @@ routes = {
         input_schema={"type": "object", "properties": {"sell_token": {"type": "string"}, "buy_token": {"type": "string"}, "amount": {"type": "number"}, "sell_amount": {"type": "string"}, "buy_amount": {"type": "string"}}},
         tags=["fx", "stablecoin", "celo", "corridor", "quote", "textile", "payments"],
     ),
+    "GET /api/fx/corridors": paid(
+        "$0.001", "Celo stablecoin-corridor token directory for Textile FX agents. Returns canonical token symbols, contract addresses, decimals, local corridor labels, exact-input and exact-output parameter rules, and upstream preview attribution. $0.001/call.",
+        {"chainId": 42220, "corridors": [{"pair": "USDT/cNGN"}], "source": "Textile FX RFQ preview"},
+        tags=["fx", "stablecoin", "celo", "corridor", "directory", "textile", "payments"],
+    ),
     "GET /x402/ping": paid(
         "$0.001", "Liveness ping  -  returns ok + server timestamp. Agent health-check / rail-validation endpoint. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"status": "ok", "ts": 1700000000},
@@ -1876,11 +1881,21 @@ async def textile_quote(sell_token: str = "USDC", buy_token: str = "USDT", amoun
         if sell_addr.lower() == buy_addr.lower():
             return JSONResponse({"error": "sell_token and buy_token must differ"}, status_code=400)
         payload = {"chainId": 42220, "sellToken": sell_addr, "buyToken": buy_addr}
+        supplied_exact_input = amount is not None or bool(sell_amount)
+        supplied_exact_output = bool(buy_amount)
+        if supplied_exact_input and supplied_exact_output:
+            return JSONResponse({"error": "send either exact-input amount/sell_amount or exact-output buy_amount, not both"}, status_code=400)
         if amount is not None:
+            if amount <= 0:
+                return JSONResponse({"error": "amount must be positive"}, status_code=400)
             payload["sellAmount"] = _decimal_to_atomic(amount, sell_dec)
         elif sell_amount:
+            if int(sell_amount) <= 0:
+                return JSONResponse({"error": "sell_amount must be positive atomic units"}, status_code=400)
             payload["sellAmount"] = str(int(sell_amount))
         elif buy_amount:
+            if int(buy_amount) <= 0:
+                return JSONResponse({"error": "buy_amount must be positive atomic units"}, status_code=400)
             payload["buyAmount"] = str(int(buy_amount))
         else:
             payload["sellAmount"] = _decimal_to_atomic(1, sell_dec)
@@ -1903,6 +1918,7 @@ async def textile_quote(sell_token: str = "USDC", buy_token: str = "USDT", amoun
             "upstreamStatus": r.status_code,
             "source": "Textile FX RFQ preview",
             "sourceDocs": "https://docs.textilecredit.com/api/v2/rfq.html",
+            "supportedTokens": sorted(TEXTILE_CELO_TOKENS),
             "note": "Indicative preview only, not a firm executable quote. Firm quotes require a taker wallet and proof of control.",
         }
         if isinstance(data, dict):
@@ -1919,6 +1935,37 @@ async def textile_quote(sell_token: str = "USDC", buy_token: str = "USDT", amoun
     except Exception as e:
         return JSONResponse({"error": "textile preview failed", "detail": repr(e)[:300]}, status_code=502)
 
+@app.get("/api/fx/corridors")
+async def textile_corridors():
+    local = {
+        "cNGN": {"symbol": "cNGN", "address": TEXTILE_CELO_TOKENS["CNGN"][0], "decimals": TEXTILE_CELO_TOKENS["CNGN"][1], "currency": "NGN"},
+        "IDRX": {"symbol": "IDRX", "address": TEXTILE_CELO_TOKENS["IDRX"][0], "decimals": TEXTILE_CELO_TOKENS["IDRX"][1], "currency": "IDR"},
+        "wARS": {"symbol": "wARS", "address": TEXTILE_CELO_TOKENS["WARS"][0], "decimals": TEXTILE_CELO_TOKENS["WARS"][1], "currency": "ARS"},
+        "wBRL": {"symbol": "wBRL", "address": TEXTILE_CELO_TOKENS["WBRL"][0], "decimals": TEXTILE_CELO_TOKENS["WBRL"][1], "currency": "BRL"},
+        "wMXN": {"symbol": "wMXN", "address": TEXTILE_CELO_TOKENS["WMXN"][0], "decimals": TEXTILE_CELO_TOKENS["WMXN"][1], "currency": "MXN"},
+        "wCOP": {"symbol": "wCOP", "address": TEXTILE_CELO_TOKENS["WCOP"][0], "decimals": TEXTILE_CELO_TOKENS["WCOP"][1], "currency": "COP"},
+    }
+    settlement = {
+        "USDT": {"symbol": "USDT", "address": TEXTILE_CELO_TOKENS["USDT"][0], "decimals": TEXTILE_CELO_TOKENS["USDT"][1]},
+        "USDC": {"symbol": "USDC", "address": TEXTILE_CELO_TOKENS["USDC"][0], "decimals": TEXTILE_CELO_TOKENS["USDC"][1]},
+        "USAT": {"symbol": "USAT", "address": TEXTILE_CELO_TOKENS["USAT"][0], "decimals": TEXTILE_CELO_TOKENS["USAT"][1]},
+    }
+    return {
+        "chainId": 42220,
+        "network": "Celo mainnet",
+        "settlementTokens": settlement,
+        "localStablecoins": local,
+        "corridors": [{"pair": f"USDT/{v['symbol']}", "sellToken": "USDT", "buyToken": v["symbol"], "localCurrency": v["currency"]} for v in local.values()],
+        "quoteEndpoint": "/api/fx/textile-quote?sell_token=USDT&buy_token=cNGN&amount=1",
+        "amountRules": {
+            "exactInput": "pass decimal amount or atomic sell_amount",
+            "exactOutput": "pass atomic buy_amount",
+            "exclusive": "exact-input and exact-output parameters are mutually exclusive",
+        },
+        "source": "Textile FX RFQ preview",
+        "sourceDocs": "https://fx-docs.textilecredit.com/api/v2/rfq.html",
+        "note": "Token map and endpoint adapter are operated by AtlasData. Liquidity is indicative and can change; query textile-quote for current preview status.",
+    }
 
 @app.get("/l402/security/prompt-injection")
 async def l402_prompt_injection(text: str):
