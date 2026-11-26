@@ -11,6 +11,8 @@ import io
 import json
 import re
 import unicodedata
+import uuid
+import datetime
 from types import SimpleNamespace
 
 import httpx
@@ -764,6 +766,28 @@ def _enrich_bazaar(method: str, path: str, rc) -> None:
 for _k, _rc in list(routes.items()):
     _meth, _pth = _k.split(" ", 1)
     _enrich_bazaar(_meth, _pth, _rc)
+
+_qv_post = routes.get("POST /api/dashboard/q-verdict/resource")
+if _qv_post is not None:
+    _bz = (_qv_post.extensions or {}).get("bazaar") or {}
+    _schema = _bz.get("schema") or {}
+    _input = ((_schema.get("properties") or {}).get("input") or {})
+    _props = _input.get("properties") or {}
+    _props.pop("queryParams", None)
+    _props["method"] = {"type": "string", "const": "POST"}
+    _props["bodyType"] = {"type": "string", "const": "json"}
+    _props["body"] = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "tokenAddress": {"type": "string", "description": "EVM contract address or Solana mint."},
+            "chain": {"type": "string", "enum": ["base", "ethereum", "bsc", "polygon", "arbitrum", "avalanche", "optimism", "solana"], "default": "base"},
+            "requestKey": {"type": "string", "minLength": 16, "maxLength": 128},
+        },
+        "required": ["tokenAddress"],
+    }
+    _input["required"] = ["type", "method", "bodyType", "body"]
+    _input["properties"] = _props
 
 app = FastAPI(title="AtlasData  -  paid micro data API", version="0.1.0")
 if not os.environ.get("FREE_MODE"):
@@ -1608,7 +1632,14 @@ async def _qverdict_result(address: str, chain: str = "base"):
             return 0.0
 
     matching = [p for p in pairs if (p.get("chainId") or "").lower() == dex_chain]
-    pair = sorted(matching or pairs, key=liq, reverse=True)[0] if (matching or pairs) else None
+    candidates = matching or pairs
+    wanted_lower = address.lower()
+    base_matches = [p for p in candidates if str((p.get("baseToken") or {}).get("address") or "").lower() == wanted_lower]
+    quote_matches = [p for p in candidates if str((p.get("quoteToken") or {}).get("address") or "").lower() == wanted_lower]
+    pair_pool = base_matches or quote_matches or candidates
+    pair = sorted(pair_pool, key=liq, reverse=True)[0] if pair_pool else None
+    token_is_base = bool(pair and str((pair.get("baseToken") or {}).get("address") or "").lower() == wanted_lower)
+    token_is_quote = bool(pair and str((pair.get("quoteToken") or {}).get("address") or "").lower() == wanted_lower)
     price = liquidity = volume24 = fdv = market_cap = None
     buys24 = sells24 = 0
     price_change = {}
@@ -1622,18 +1653,49 @@ async def _qverdict_result(address: str, chain: str = "base"):
             token_side = quote_token
         info = pair.get("info") or {}
         tx24 = ((pair.get("txns") or {}).get("h24") or {})
-        buys24 = int(tx24.get("buys") or 0)
-        sells24 = int(tx24.get("sells") or 0)
         volume = pair.get("volume") or {}
         price_change = pair.get("priceChange") or {}
-        liquidity = liq(pair)
-        volume24 = _pct(volume.get("h24"))
-        fdv = _pct(pair.get("fdv"))
-        market_cap = _pct(pair.get("marketCap"))
+        seen_pairs = set()
+        liquidity = 0.0
+        volume24 = 0.0
+        buys24 = 0
+        sells24 = 0
+        for pp in candidates:
+            pid = pp.get("pairAddress") or id(pp)
+            if pid in seen_pairs:
+                continue
+            seen_pairs.add(pid)
+            liquidity += liq(pp)
+            try:
+                volume24 += float((pp.get("volume") or {}).get("h24") or 0)
+            except Exception:
+                pass
+            ptx = ((pp.get("txns") or {}).get("h24") or {})
+            try:
+                buys24 += int(ptx.get("buys") or 0)
+                sells24 += int(ptx.get("sells") or 0)
+            except Exception:
+                pass
+        liquidity = round(liquidity, 2)
+        volume24 = round(volume24, 2)
         try:
-            price = float(pair.get("priceUsd") or 0)
+            raw_price = float(pair.get("priceUsd") or 0)
         except Exception:
+            raw_price = None
+        stable_symbols = {"USDC", "USDT", "DAI", "USDE", "USDS", "FDUSD", "PYUSD", "USD1"}
+        token_symbol_upper = str(token_side.get("symbol") or "").upper()
+        if token_is_base:
+            price = raw_price
+            fdv = _pct(pair.get("fdv"))
+            market_cap = _pct(pair.get("marketCap"))
+        elif token_is_quote and token_symbol_upper in stable_symbols:
+            price = 1.0
+            fdv = None
+            market_cap = None
+        else:
             price = None
+            fdv = None
+            market_cap = None
         created = pair.get("pairCreatedAt")
         if created:
             age_days = round(max(0.0, (time.time() * 1000 - float(created)) / 86400000), 2)
@@ -1734,6 +1796,8 @@ async def _qverdict_result(address: str, chain: str = "base"):
         flags.append("honeypot_confirmed")
     if not pair:
         flags.append("no_dex_liquidity_found")
+    elif token_is_quote and not token_is_base:
+        flags.append("token_seen_as_quote_asset")
     if liquidity is not None and liquidity < 10000:
         flags.append("thin_liquidity")
     if age_days is not None and age_days < 3:
@@ -1812,6 +1876,90 @@ async def _qverdict_result(address: str, chain: str = "base"):
     return out
 
 
+_QVERDICT_OPS = {}
+
+
+def _qv_metric_item(key, label, value, unit=None, source="token_metrics_provider"):
+    available = value is not None and value != ""
+    observed = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+    return {
+        "key": key,
+        "label": label,
+        "availability": "available" if available else "unavailable",
+        "value": str(value) if available else None,
+        "unit": unit,
+        "provenance": {"source": source, "observedAt": observed, "blockNumber": None} if available else None,
+        "unavailableReason": None if available else "not_reported",
+    }
+
+
+def _qverdict_envelope(raw):
+    if isinstance(raw, JSONResponse):
+        return raw
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+    operation_id = str(uuid.uuid4())
+    public_base = os.getenv("PUBLIC_BASE_URL", "https://x402atlas.xyz").rstrip("/")
+    metrics = raw.get("metrics") or {}
+    summary = raw.get("summary") or {}
+    tx = metrics.get("txns_24h") or {}
+    metric_items = [
+        _qv_metric_item("price_usd", "Price", metrics.get("price_usd"), "USD"),
+        _qv_metric_item("liquidity_usd", "Liquidity", metrics.get("liquidity_usd"), "USD"),
+        _qv_metric_item("volume_24h_usd", "24h volume", metrics.get("volume_24h_usd"), "USD"),
+        _qv_metric_item("fdv_usd", "Fully diluted value", metrics.get("fdv_usd"), "USD"),
+        _qv_metric_item("market_cap_usd", "Market cap", metrics.get("market_cap_usd"), "USD"),
+        _qv_metric_item("transactions_24h", "24h transactions", tx.get("total"), "count", "derived"),
+        _qv_metric_item("holder_count", "Holders", summary.get("holder_count"), "count"),
+        _qv_metric_item("security_flag_count", "Security flags", summary.get("security_flag_count"), "count", "derived"),
+        _qv_metric_item("risk_score", "Risk score", raw.get("risk_score"), "0-100", "derived"),
+    ]
+    score = float(raw.get("risk_score") or 100)
+    if score >= 80:
+        compat_grade = "RADIOACTIVE"
+    elif score >= 60:
+        compat_grade = "COOKED"
+    elif score >= 40:
+        compat_grade = "MID"
+    else:
+        compat_grade = "BASED"
+    result = {
+        "grade": compat_grade,
+        "one_liner": str(raw.get("one_liner") or "Incomplete snapshot, not a trading signal.")[:70],
+        "roast": str(raw.get("roast") or "Incomplete data is not a trading signal.")[:242],
+        "metrics": {
+            "tokenAddress": raw.get("tokenAddress"),
+            "ticker": metrics.get("symbol") or "UNKNOWN",
+            "tokenName": metrics.get("name"),
+            "fetchedAt": now,
+            "metrics": metric_items,
+        },
+        "generatedAt": now,
+        "fromCache": False,
+        "disclaimer": "Not financial advice.",
+    }
+    env = {
+        "operation_id": operation_id,
+        "status_url": f"{public_base}/api/q-verdict/operations/{operation_id}",
+        "status": "paid",
+        "result": result,
+        "page_url": raw.get("page_url"),
+        "image_url": raw.get("image_url"),
+        "payment": {"status": "paid", "amount_raw": "20000", "network": "eip155:8453", "tx_hash": None},
+        "recovery": {"url": f"{public_base}/api/dashboard/q-verdict/resource", "method": "POST"},
+        "token_chain": raw.get("chain") or "base",
+        "grade": raw.get("grade"),
+        "verdict": raw.get("verdict"),
+        "risk_score": raw.get("risk_score"),
+        "flags": raw.get("flags") or [],
+        "implementation": "atlasdata-independent",
+    }
+    _QVERDICT_OPS[operation_id] = env
+    if len(_QVERDICT_OPS) > 500:
+        for old_key in list(_QVERDICT_OPS)[:100]:
+            _QVERDICT_OPS.pop(old_key, None)
+    return env
+
+
 def _qv_chain(chain):
     return (chain or "base").strip() or "base"
 
@@ -1823,7 +1971,7 @@ async def token_q_verdict(address: str = "", tokenAddress: str = "", chain: str 
 
 @app.get("/api/dashboard/q-verdict/resource")
 async def qverdict_resource_get(tokenAddress: str = "", address: str = "", chain: str = "base"):
-    return await _qverdict_result(tokenAddress or address, _qv_chain(chain))
+    return _qverdict_envelope(await _qverdict_result(tokenAddress or address, _qv_chain(chain)))
 
 
 @app.post("/api/dashboard/q-verdict/resource")
@@ -1832,7 +1980,15 @@ async def qverdict_resource_post(request: Request):
         body = await request.json()
     except Exception:
         body = {}
-    return await _qverdict_result(str(body.get("tokenAddress") or body.get("address") or ""), _qv_chain(str(body.get("chain") or "base")))
+    return _qverdict_envelope(await _qverdict_result(str(body.get("tokenAddress") or body.get("address") or ""), _qv_chain(str(body.get("chain") or "base"))))
+
+
+@app.get("/api/q-verdict/operations/{operation_id}")
+async def qverdict_operation(operation_id: str):
+    found = _QVERDICT_OPS.get(operation_id)
+    if not found:
+        return JSONResponse({"error": "operation not found", "operation_id": operation_id}, status_code=404)
+    return found
 
 
 @app.get("/api/token/{address}")
