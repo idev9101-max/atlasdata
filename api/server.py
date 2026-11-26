@@ -110,6 +110,14 @@ SEI_NETWORK = "eip155:1329"  # Sei  -  median 7 calls in census (7x Base), PayAI
 XLAYER_NETWORK = "eip155:196"  # X Layer  -  PayAI-supported; SDK lacks its asset map, patched below
 CELO_NETWORK = "eip155:42220"  # Celo mainnet, gas-sponsored x402 facilitator
 CELO_PAY_TO = "0x2632a66e376090565F84794705970B96E75C5C2A"
+CELO_USDC = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C"
+CELO_USDT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e"
+CELO_USAT = "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771"
+
+def _celo_asset_amount(price: str, asset: str, name: str, version: str):
+    from decimal import Decimal
+    amount = int((Decimal(price.strip().lstrip("$")) * Decimal(1000000)).to_integral_value())
+    return {"amount": str(amount), "asset": asset, "extra": {"name": name, "version": version}}
 
 # X Layer USDC is Circle-native (EIP-3009); the SDK's DEFAULT_ASSETS has no eip155:196
 # entry, so resolve_options 500s  -  register the asset explicitly.
@@ -176,7 +184,9 @@ def paid(price: str, description: str, out_example: dict, input_schema=None, pat
     return RouteConfig(
         accepts=[PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=NETWORK, max_timeout_seconds=3600),
                  PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=POLY_NETWORK, max_timeout_seconds=3600),
-                 PaymentOption(scheme="exact", pay_to=CELO_PAY_TO, price=price, network=CELO_NETWORK, max_timeout_seconds=3600),
+                 PaymentOption(scheme="exact", pay_to=CELO_PAY_TO, price=_celo_asset_amount(price, CELO_USDC, "USDC", "2"), network=CELO_NETWORK, max_timeout_seconds=3600),
+                 PaymentOption(scheme="exact", pay_to=CELO_PAY_TO, price=_celo_asset_amount(price, CELO_USDT, "Tether USD", "1"), network=CELO_NETWORK, max_timeout_seconds=3600),
+                 PaymentOption(scheme="exact", pay_to=CELO_PAY_TO, price=_celo_asset_amount(price, CELO_USAT, "Tether America USD", "1"), network=CELO_NETWORK, max_timeout_seconds=3600),
                  PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=ARB_NETWORK, max_timeout_seconds=3600),
                  PaymentOption(scheme="exact", pay_to=SOL_PAY_TO, price=price, network=SOL_NETWORK, max_timeout_seconds=3600,
                                extra={"transactionVersions": ["legacy", "v0"]}),
