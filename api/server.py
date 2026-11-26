@@ -802,6 +802,24 @@ async def api_catalog(request: Request):
     }
 
 
+@app.get("/.well-known/mcp.json", include_in_schema=False)
+async def mcp_well_known():
+    return {
+        "name": "AtlasData Agent Tools",
+        "version": "1.0.0",
+        "mcp": "https://x402atlas.xyz/mcp",
+        "transport": "streamable-http",
+        "payment": "x402",
+        "registryName": "io.github.idev9101-max/atlasdata-agent-tools",
+    }
+
+
+@app.get("/.well-known/bounty-mcp-registry.txt", include_in_schema=False)
+async def bounty_mcp_registry_verify():
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse("xyz.x402atlas/atlasdata-agent-tools\n")
+
+
 @app.get("/.well-known/x402")
 async def well_known(request: Request):
     base = "https://x402atlas.xyz"
