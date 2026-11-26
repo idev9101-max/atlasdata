@@ -2917,7 +2917,7 @@ async def search_web(q: str, limit: int = 8):
         return JSONResponse({"error": "q required"}, status_code=400)
     limit = max(1, min(int(limit or 8), 10))
     headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"}
-    cache_key = " ".join(query.lower().split())
+    cache_key = " ".join(query.lower().split()) + f"|limit={limit}"
     cache = getattr(search_web, "_cache", {})
     now_ts = time.time()
     cached = cache.get(cache_key)
