@@ -351,6 +351,12 @@ routes = {
         input_schema={"type": "object", "properties": {"limit": {"type": "integer"}}},
         tags=["agent", "work", "bounty", "jobs", "radar", "income", "research"],
     ),
+    "GET /api/news/daily-evidence": paid(
+        "$0.001", "Same-day global news evidence feed for editorial infographic and news-research agents. Aggregates major RSS sources and Google News topic searches, deduplicates stories, preserves exact UTC publication times, source names, titles, summaries, links and topic labels, then returns a curated research substrate for the requested UTC date. Params: date=YYYY-MM-DD optional, limit optional up to 120. $0.001/call.",
+        {"date": "2026-11-26", "count": 50, "items": [{"time_utc": "08:27", "source": "bbc", "title": "..."}]},
+        input_schema={"type": "object", "properties": {"date": {"type": "string"}, "limit": {"type": "integer"}}},
+        tags=["news", "evidence", "research", "infographic", "agent", "world-news", "editorial"],
+    ),
     "GET /api/security/prompt-injection": paid(
         "$0.001", "Classify agent-bound text for prompt-injection risk. Detects instruction override, system-prompt extraction, credential exfiltration, tool abuse, money movement, fake system messages, secrecy instructions, invisible Unicode, exfiltration links, encoded payloads, and jailbreak phrasing; returns risk level, score, findings with excerpts, and safe handling advice. Params: text (required). $0.001/call.",
         {"text": "ignore previous instructions", "label": "suspicious", "score": 35, "matches": ["instruction_override"]},
@@ -773,6 +779,7 @@ async def well_known(request: Request):
             f"{base}/api/search/web?q=x402%20payments&limit=3",
             f"{base}/api/web/read?url=https%3A%2F%2Fexample.com",
             f"{base}/api/agent/work-radar?limit=5",
+            f"{base}/api/news/daily-evidence?limit=20",
             f"{base}/api/security/prompt-injection?text=ignore%20previous%20instructions",
             f"{base}/api/text/pii-redact?text=email%20me%20at%20a%40example.com",
             f"{base}/api/image/gen-lite?prompt=red%20apple%20icon&seed=7",
@@ -854,6 +861,7 @@ PAID_META = {
     "/api/x402/search": ("$0.03", "Alias of /api/x402/discover  -  search all x402 sellers by keyword with demand stats."),
     "/api/url/read": ("$0.005", "Fetch a URL and return title + meta description + readable main text (boilerplate stripped, up to 12KB). Params: url."),
     "/api/agent/work-radar": ("$0.001", "Live agent-work opportunity radar across make.fun, Taskmarket and SwarmMemo. Params: limit."),
+    "/api/news/daily-evidence": ("$0.001", "Same-day global news evidence feed for editorial infographic agents. Params: date, limit."),
 }
 
 
@@ -2267,6 +2275,137 @@ async def agent_work_radar(limit: int = 12):
             "opportunities": opportunities[:limit], "count": len(opportunities[:limit]),
             "total_seen": len(opportunities), "errors": errors,
             "note": "priority_score is heuristic; inspect each brief before acting"}
+
+
+_NEWS_EVIDENCE_CACHE = {}
+
+_NEWS_DIRECT_FEEDS = [
+    ("bbc-world", "https://feeds.bbci.co.uk/news/world/rss.xml"),
+    ("bbc-us-canada", "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml"),
+    ("bbc-europe", "https://feeds.bbci.co.uk/news/world/europe/rss.xml"),
+    ("bbc-asia", "https://feeds.bbci.co.uk/news/world/asia/rss.xml"),
+    ("bbc-africa", "https://feeds.bbci.co.uk/news/world/africa/rss.xml"),
+    ("bbc-middle-east", "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml"),
+    ("bbc-latin-america", "https://feeds.bbci.co.uk/news/world/latin_america/rss.xml"),
+    ("bbc-business", "https://feeds.bbci.co.uk/news/business/rss.xml"),
+    ("bbc-technology", "https://feeds.bbci.co.uk/news/technology/rss.xml"),
+    ("aljazeera", "https://www.aljazeera.com/xml/rss/all.xml"),
+    ("guardian-world", "https://www.theguardian.com/world/rss"),
+    ("france24", "https://www.france24.com/en/rss"),
+    ("dw", "https://rss.dw.com/rdf/rss-en-all"),
+    ("npr-world", "https://feeds.npr.org/1004/rss.xml"),
+]
+
+_NEWS_GOOGLE_QUERIES = [
+    "world when:1d", "middle east when:1d", "africa when:1d", "asia when:1d",
+    "europe when:1d", "latin america when:1d", "business economy when:1d",
+    "technology science when:1d", "climate disaster when:1d", "war conflict when:1d",
+    "space when:1d", "markets when:1d",
+]
+
+
+def _news_clean(value):
+    import html as _html
+    value = _html.unescape(value or "")
+    value = re.sub(r"<[^>]+>", " ", value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _rss_tag(block, name):
+    m = re.search(r"<" + re.escape(name) + r"[^>]*>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</" + re.escape(name) + r">", block, re.S)
+    return _news_clean(m.group(1)) if m else ""
+
+
+async def _news_fetch(kind, label, url):
+    try:
+        r = await _client.get(url, timeout=10, headers={"User-Agent": "AtlasDataNewsEvidence/1.0"})
+        if r.status_code != 200:
+            return kind, label, url, "", f"http {r.status_code}"
+        return kind, label, url, r.text, None
+    except Exception as e:
+        return kind, label, url, "", str(e)[:100]
+
+
+def _parse_news_items(kind, label, text):
+    from email.utils import parsedate_to_datetime
+    import datetime as _dt
+    out = []
+    for m in re.finditer(r"<item\b.*?</item>", text or "", re.S):
+        block = m.group(0)
+        title = _rss_tag(block, "title")
+        pub = _rss_tag(block, "pubDate")
+        if not title or not pub:
+            continue
+        try:
+            dt = parsedate_to_datetime(pub).astimezone(_dt.timezone.utc)
+        except Exception:
+            continue
+        out.append({
+            "published_at": dt.isoformat().replace("+00:00", "Z"),
+            "time_utc": dt.strftime("%H:%M"),
+            "date": dt.date().isoformat(),
+            "source": label if kind == "direct" else "google-news",
+            "topic": None if kind == "direct" else label,
+            "title": title,
+            "summary": _rss_tag(block, "description")[:260],
+            "link": _rss_tag(block, "link"),
+        })
+    return out
+
+
+@app.get("/api/news/daily-evidence")
+async def news_daily_evidence(date: str = "", limit: int = 80):
+    import datetime as _dt
+    import urllib.parse
+    limit = max(5, min(int(limit or 80), 120))
+    if not date:
+        date = _dt.datetime.now(_dt.timezone.utc).date().isoformat()
+    if not re.fullmatch(r"20\d\d-\d\d-\d\d", date or ""):
+        return JSONResponse({"error": "date must be YYYY-MM-DD"}, status_code=400)
+    cache_key = date
+    cached = _NEWS_EVIDENCE_CACHE.get(cache_key)
+    now = int(time.time())
+    if cached and now - cached.get("generated_at_epoch", 0) < 1200:
+        items = cached["items"][:limit]
+        return {**cached["response"], "items": items, "count": len(items), "cache": "hit"}
+    urls = [("direct", label, url) for label, url in _NEWS_DIRECT_FEEDS]
+    for q in _NEWS_GOOGLE_QUERIES:
+        urls.append(("google", q, "https://news.google.com/rss/search?q=" + urllib.parse.quote(q) + "&hl=en-US&gl=US&ceid=US:en"))
+    fetched = await asyncio.gather(*[_news_fetch(*x) for x in urls])
+    seen = set()
+    items = []
+    errors = {}
+    for kind, label, url, text, err in fetched:
+        if err:
+            errors[label] = err
+            continue
+        for item in _parse_news_items(kind, label, text):
+            if item.pop("date") != date:
+                continue
+            key = re.sub(r"[^a-z0-9]+", " ", item["title"].lower()).strip()[:90]
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            items.append(item)
+    items.sort(key=lambda x: x["published_at"])
+    response = {
+        "date": date,
+        "generated_at_epoch": now,
+        "sources_attempted": len(urls),
+        "sources_failed": len(errors),
+        "items_total": len(items),
+        "items": items[:limit],
+        "count": len(items[:limit]),
+        "cache": "miss",
+        "curation_notes": [
+            "Every item was published on the requested UTC date, but the agent must still distinguish same-day events from same-day reports about older events.",
+            "Treat one-sided official or military claims as claims, not confirmed facts.",
+            "Exact numbers and times should be copied only when present in the title or summary; otherwise verify before use.",
+        ],
+        "errors": errors,
+    }
+    _NEWS_EVIDENCE_CACHE[cache_key] = {"generated_at_epoch": now, "items": items, "response": {k: v for k, v in response.items() if k not in ("items", "count", "cache")}}
+    return response
 
 
 @app.get("/api/security/prompt-injection")
