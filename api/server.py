@@ -277,7 +277,7 @@ routes = {
         tags=["token", "security", "honeypot", "risk", "screener"],
     ),
     "GET /api/token/q-verdict": paid(
-        "$0.02", "Algorithmic token verdict with grade, one-liner, roast, live market metrics, liquidity, momentum, security flags, and risk score for agents screening tokens before trading. Accepts address or tokenAddress plus chain. Covers EVM chains through GoPlus/honeypot analysis and Dexscreener chains including Base and Solana for live market data. No account, no API key. $0.02/call.",
+        "$0.02", "Algorithmic token verdict with grade, one-liner, roast, live market metrics, liquidity, momentum, security flags, and risk score for agents screening tokens before trading. Accepts address or tokenAddress plus chain. Covers EVM chains through GoPlus/honeypot analysis and Solana through GoPlus token-security plus Dexscreener live market data. No account, no API key. $0.02/call.",
         {"tokenAddress": "0x...", "chain": "base", "grade": "C", "verdict": "caution", "risk_score": 52, "metrics": {"price_usd": "1.0", "liquidity_usd": 100000}},
         input_schema={"type": "object", "properties": {"address": {"type": "string"}, "tokenAddress": {"type": "string"}, "chain": {"type": "string"}}, "required": ["chain"]},
         tags=["token", "verdict", "security", "memecoin", "market-data", "q-verdict"],
@@ -1540,6 +1540,41 @@ async def _qverdict_result(address: str, chain: str = "base"):
     owner_pct = creator_pct = buy_tax = sell_tax = 0.0
     holder_count = None
     honeypot_state = None
+    if is_solana:
+        try:
+            g = await _client.get("https://api.gopluslabs.io/api/v1/solana/token_security",
+                                  params={"contract_addresses": address}, timeout=20)
+            gres = (g.json().get("result") or {}).get(address) or {}
+            def auth_flag(name):
+                item = gres.get(name)
+                if isinstance(item, dict):
+                    return str(item.get("status", "")).lower() in ("1", "true") and bool(item.get("authority") or item.get("metadata_upgrade_authority"))
+                return str(item or "").lower() in ("1", "true")
+            for name in ("freezable", "mintable", "closable", "balance_mutable_authority", "metadata_mutable", "default_account_state_upgradable", "transfer_fee_upgradable", "transfer_hook_upgradable"):
+                if auth_flag(name):
+                    security_flags.append(name)
+            if str(gres.get("non_transferable", "")).lower() in ("1", "true"):
+                security_flags.append("non_transferable")
+            holder_count = gres.get("holder_count")
+            top_pct = 0.0
+            holders = gres.get("holders") or []
+            if holders:
+                try:
+                    top_pct = max(float(h.get("percent") or 0) for h in holders)
+                except Exception:
+                    top_pct = 0.0
+            owner_pct = top_pct
+            out["security"]["goplus_solana"] = {
+                "flags": security_flags,
+                "holder_count": holder_count,
+                "top_holder_percent": top_pct,
+                "trusted_token": gres.get("trusted_token"),
+                "mintable": gres.get("mintable"),
+                "freezable": gres.get("freezable"),
+                "metadata_mutable": gres.get("metadata_mutable"),
+            }
+        except Exception as e:
+            out["security"]["goplus_solana_error"] = str(e)[:140]
     if is_evm:
         cid = _GOPLUS_CHAIN.get(chain, chain)
         try:
