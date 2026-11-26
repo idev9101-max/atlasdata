@@ -96,12 +96,20 @@ try:
         facilitators.append(HTTPFacilitatorClient(cdp_config))
 except Exception as e:
     print("CDP facilitator unavailable:", repr(e)[:200])
+celo_key = os.getenv("X402_CELO_API_KEY")
+if celo_key:
+    def _celo_headers():
+        h = {"X-API-Key": celo_key}
+        return {"verify": h, "settle": h, "supported": h}
+    facilitators.append(HTTPFacilitatorClient({"url": "https://api.x402.celo.org", "create_headers": _celo_headers}))
 facilitators.append(payai)
 server = x402ResourceServer(facilitators)
 AVAX_NETWORK = "eip155:43114"  # Avalanche  -  6x-median rail (OP/Celo not facilitator-supported)
 ARB_NETWORK = "eip155:42161"  # Arbitrum  -  PayAI-supported, live catalog rail
 SEI_NETWORK = "eip155:1329"  # Sei  -  median 7 calls in census (7x Base), PayAI-supported
 XLAYER_NETWORK = "eip155:196"  # X Layer  -  PayAI-supported; SDK lacks its asset map, patched below
+CELO_NETWORK = "eip155:42220"  # Celo mainnet, gas-sponsored x402 facilitator
+CELO_PAY_TO = "0x2632a66e376090565F84794705970B96E75C5C2A"
 
 # X Layer USDC is Circle-native (EIP-3009); the SDK's DEFAULT_ASSETS has no eip155:196
 # entry, so resolve_options 500s  -  register the asset explicitly.
@@ -117,6 +125,7 @@ server.register(AVAX_NETWORK, ExactEvmServerScheme())
 server.register(ARB_NETWORK, ExactEvmServerScheme())
 server.register(SEI_NETWORK, ExactEvmServerScheme())
 server.register(XLAYER_NETWORK, ExactEvmServerScheme())
+server.register(CELO_NETWORK, ExactEvmServerScheme())
 server.register(SOL_NETWORK, ExactSvmServerScheme(rpc_url="https://api.mainnet-beta.solana.com"))
 server.register_extension(bazaar_resource_server_extension)
 
@@ -167,6 +176,7 @@ def paid(price: str, description: str, out_example: dict, input_schema=None, pat
     return RouteConfig(
         accepts=[PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=NETWORK, max_timeout_seconds=3600),
                  PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=POLY_NETWORK, max_timeout_seconds=3600),
+                 PaymentOption(scheme="exact", pay_to=CELO_PAY_TO, price=price, network=CELO_NETWORK, max_timeout_seconds=3600),
                  PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=ARB_NETWORK, max_timeout_seconds=3600),
                  PaymentOption(scheme="exact", pay_to=SOL_PAY_TO, price=price, network=SOL_NETWORK, max_timeout_seconds=3600,
                                extra={"transactionVersions": ["legacy", "v0"]}),
