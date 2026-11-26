@@ -114,11 +114,33 @@ CELO_PAY_TO = "0x2632a66e376090565F84794705970B96E75C5C2A"
 CELO_USDC = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C"
 CELO_USDT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e"
 CELO_USAT = "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771"
+CELO_WARS = "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D"
+CELO_WBRL = "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0"
+CELO_WMXN = "0x337E7456B420bD3481e7FA61fA9850343d610d34"
+CELO_WCOP = "0x8a1D45e102e886510e891d2Ec656a708991e2D76"
 
-def _celo_asset_amount(price: str, asset: str, name: str, version: str):
+def _celo_asset_amount(price: str, asset: str, name: str, version: str, decimals: int = 6, usd_rate: str = "1", transfer: str | None = None):
     from decimal import Decimal
-    amount = int((Decimal(price.strip().lstrip("$")) * Decimal(1000000)).to_integral_value())
-    return {"amount": str(amount), "asset": asset, "extra": {"name": name, "version": version}}
+    amount = int((Decimal(price.strip().lstrip("$")) * Decimal(usd_rate) * (Decimal(10) ** decimals)).to_integral_value())
+    extra = {"name": name, "version": version}
+    if transfer:
+        extra["assetTransferMethod"] = transfer
+    return {"amount": str(amount), "asset": asset, "extra": extra}
+
+def _celo_payment_options(price: str, include_local: bool = False):
+    opts = [
+        PaymentOption(scheme="exact", pay_to=CELO_PAY_TO, price=_celo_asset_amount(price, CELO_USDC, "USDC", "2"), network=CELO_NETWORK, max_timeout_seconds=3600),
+        PaymentOption(scheme="exact", pay_to=CELO_PAY_TO, price=_celo_asset_amount(price, CELO_USDT, "Tether USD", "1"), network=CELO_NETWORK, max_timeout_seconds=3600),
+        PaymentOption(scheme="exact", pay_to=CELO_PAY_TO, price=_celo_asset_amount(price, CELO_USAT, "Tether America USD", "1"), network=CELO_NETWORK, max_timeout_seconds=3600),
+    ]
+    if include_local:
+        opts += [
+            PaymentOption(scheme="exact", pay_to=CELO_PAY_TO, price=_celo_asset_amount(price, CELO_WARS, "Peso Argentino", "1", 18, "1756", "permit2"), network=CELO_NETWORK, max_timeout_seconds=3600),
+            PaymentOption(scheme="exact", pay_to=CELO_PAY_TO, price=_celo_asset_amount(price, CELO_WBRL, "Real Brasileño", "1", 18, "5.845", "permit2"), network=CELO_NETWORK, max_timeout_seconds=3600),
+            PaymentOption(scheme="exact", pay_to=CELO_PAY_TO, price=_celo_asset_amount(price, CELO_WMXN, "Peso Mexicano", "1", 18, "18.4", "permit2"), network=CELO_NETWORK, max_timeout_seconds=3600),
+            PaymentOption(scheme="exact", pay_to=CELO_PAY_TO, price=_celo_asset_amount(price, CELO_WCOP, "Peso Colombiano", "1", 18, "3535", "permit2"), network=CELO_NETWORK, max_timeout_seconds=3600),
+        ]
+    return opts
 
 # X Layer USDC is Circle-native (EIP-3009); the SDK's DEFAULT_ASSETS has no eip155:196
 # entry, so resolve_options 500s  -  register the asset explicitly.
@@ -139,7 +161,7 @@ server.register(SOL_NETWORK, ExactSvmServerScheme(rpc_url="https://api.mainnet-b
 server.register_extension(bazaar_resource_server_extension)
 
 
-def paid(price: str, description: str, out_example: dict, input_schema=None, path_params=None, tags=None):
+def paid(price: str, description: str, out_example: dict, input_schema=None, path_params=None, tags=None, celo_only: bool = False):
     """RouteConfig factory with Bazaar discovery metadata."""
     service_name = os.getenv("SERVICE_DISPLAY_NAME", "AtlasData")
     public_base = os.getenv("PUBLIC_BASE_URL", "https://x402atlas.xyz").rstrip("/")
@@ -171,18 +193,21 @@ def paid(price: str, description: str, out_example: dict, input_schema=None, pat
         },
     }
     ext["builder-code"] = declare_builder_code_extension("celo_390c43b6bdd3")
-    return RouteConfig(
-        accepts=[PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=NETWORK, max_timeout_seconds=3600),
+    if celo_only:
+        ext["eip2612GasSponsoring"] = {"info": {"description": "The facilitator sponsors the EIP-2612 permit to Permit2.", "version": "1"}}
+    celo_accepts = _celo_payment_options(price, include_local=celo_only)
+    accepts = celo_accepts if celo_only else [
+                 PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=NETWORK, max_timeout_seconds=3600),
                  PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=POLY_NETWORK, max_timeout_seconds=3600),
-                 PaymentOption(scheme="exact", pay_to=CELO_PAY_TO, price=_celo_asset_amount(price, CELO_USDC, "USDC", "2"), network=CELO_NETWORK, max_timeout_seconds=3600),
-                 PaymentOption(scheme="exact", pay_to=CELO_PAY_TO, price=_celo_asset_amount(price, CELO_USDT, "Tether USD", "1"), network=CELO_NETWORK, max_timeout_seconds=3600),
-                 PaymentOption(scheme="exact", pay_to=CELO_PAY_TO, price=_celo_asset_amount(price, CELO_USAT, "Tether America USD", "1"), network=CELO_NETWORK, max_timeout_seconds=3600),
+                 *celo_accepts,
                  PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=ARB_NETWORK, max_timeout_seconds=3600),
                  PaymentOption(scheme="exact", pay_to=SOL_PAY_TO, price=price, network=SOL_NETWORK, max_timeout_seconds=3600,
                                extra={"transactionVersions": ["legacy", "v0"]}),
                  PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=AVAX_NETWORK, max_timeout_seconds=3600),
                  PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=SEI_NETWORK, max_timeout_seconds=3600),
-                 PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=XLAYER_NETWORK, max_timeout_seconds=3600)],
+                 PaymentOption(scheme="exact", pay_to=PAY_TO, price=price, network=XLAYER_NETWORK, max_timeout_seconds=3600)]
+    return RouteConfig(
+        accepts=accepts,
         mime_type="application/json",
         description=description,
         service_name=service_name,
@@ -586,11 +611,13 @@ routes = {
         {"chainId": 42220, "status": "preview", "sellToken": "USDC", "buyToken": "USDT", "sellAmount": "1000000", "buyAmount": "1000259", "source": "Textile FX RFQ preview"},
         input_schema={"type": "object", "properties": {"sell_token": {"type": "string"}, "buy_token": {"type": "string"}, "amount": {"type": "number"}, "sell_amount": {"type": "string"}, "buy_amount": {"type": "string"}}},
         tags=["fx", "stablecoin", "celo", "corridor", "quote", "textile", "payments"],
+        celo_only=True,
     ),
     "GET /api/fx/corridors": paid(
         "$0.001", "Celo stablecoin-corridor token directory for Textile FX agents. Returns canonical token symbols, contract addresses, decimals, local corridor labels, exact-input and exact-output parameter rules, and upstream preview attribution. $0.001/call.",
         {"chainId": 42220, "corridors": [{"pair": "USDT/cNGN"}], "source": "Textile FX RFQ preview"},
         tags=["fx", "stablecoin", "celo", "corridor", "directory", "textile", "payments"],
+        celo_only=True,
     ),
     "GET /x402/ping": paid(
         "$0.001", "Liveness ping  -  returns ok + server timestamp. Agent health-check / rail-validation endpoint. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
