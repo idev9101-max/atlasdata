@@ -276,6 +276,24 @@ routes = {
         input_schema={"type": "object", "properties": {"address": {"type": "string"}, "chain": {"type": "string"}}, "required": ["address"]},
         tags=["token", "security", "honeypot", "risk", "screener"],
     ),
+    "GET /api/token/q-verdict": paid(
+        "$0.02", "Algorithmic token verdict with grade, one-liner, roast, live market metrics, liquidity, momentum, security flags, and risk score for agents screening tokens before trading. Accepts address or tokenAddress plus chain. Covers EVM chains through GoPlus/honeypot analysis and Dexscreener chains including Base and Solana for live market data. No account, no API key. $0.02/call.",
+        {"tokenAddress": "0x...", "chain": "base", "grade": "C", "verdict": "caution", "risk_score": 52, "metrics": {"price_usd": "1.0", "liquidity_usd": 100000}},
+        input_schema={"type": "object", "properties": {"address": {"type": "string"}, "tokenAddress": {"type": "string"}, "chain": {"type": "string"}}, "required": ["chain"]},
+        tags=["token", "verdict", "security", "memecoin", "market-data", "q-verdict"],
+    ),
+    "GET /api/dashboard/q-verdict/resource": paid(
+        "$0.02", "q-verdict-compatible token verdict resource. Returns grade, one_liner, roast, metrics, page_url, image_url, risk_score, flags, and verdict. Accepts tokenAddress/address and chain. This is AtlasData's independent implementation, not AX1. No account, no API key. $0.02/call.",
+        {"tokenAddress": "0x...", "chain": "base", "grade": "C", "one_liner": "Liquid but volatile", "metrics": {}},
+        input_schema={"type": "object", "properties": {"tokenAddress": {"type": "string"}, "address": {"type": "string"}, "chain": {"type": "string"}}, "required": ["tokenAddress"]},
+        tags=["token", "verdict", "q-verdict", "security", "market-data"],
+    ),
+    "POST /api/dashboard/q-verdict/resource": paid(
+        "$0.02", "POST variant of the q-verdict-compatible token verdict resource. Body: {tokenAddress, chain}. Returns grade, one_liner, roast, metrics, page_url, image_url, risk_score, flags, and verdict. AtlasData independent implementation. No account, no API key. $0.02/call.",
+        {"tokenAddress": "0x...", "chain": "base", "grade": "C", "one_liner": "Liquid but volatile", "metrics": {}},
+        input_schema={"type": "object", "properties": {"tokenAddress": {"type": "string"}, "chain": {"type": "string"}}, "required": ["tokenAddress"]},
+        tags=["token", "verdict", "q-verdict", "security", "market-data", "post"],
+    ),
     "GET /api/token/[address]": paid(
         "$0.005", "name, symbol, decimals, total supply  -  ERC-20 token metadata on Base.",
         {"address": "0x8335...", "name": "USD Coin", "symbol": "USDC", "decimals": 6, "total_supply": "123456789"},
@@ -1414,6 +1432,251 @@ async def token_verdict_lite(address: str, chain: str = "base"):
         "lp_locked": gres.get("lp_holders") is not None,
         "source": "GoPlus token security", "verdict_type": "lite",
     }
+
+
+_DEX_CHAIN_ALIAS = {"eth": "ethereum", "matic": "polygon", "arb": "arbitrum", "avax": "avalanche", "binance": "bsc", "op": "optimism"}
+
+
+def _truthy(v):
+    return str(v).lower() in ("1", "true")
+
+
+def _pct(v):
+    try:
+        return float(v or 0)
+    except Exception:
+        return 0.0
+
+
+async def _qverdict_result(address: str, chain: str = "base"):
+    address = (address or "").strip()
+    chain = (chain or "base").strip().lower()
+    dex_chain = _DEX_CHAIN_ALIAS.get(chain, chain)
+    is_evm = bool(re.fullmatch(r"0x[0-9a-fA-F]{40}", address))
+    is_solana = bool(re.fullmatch(r"[1-9A-HJ-NP-Za-km-z]{32,44}", address)) and not is_evm
+    if not (is_evm or is_solana):
+        return JSONResponse({"error": "invalid tokenAddress", "hint": "pass an EVM 0x contract address or Solana mint"}, status_code=400)
+
+    out = {
+        "tokenAddress": address,
+        "address": address.lower() if is_evm else address,
+        "chain": chain,
+        "supported_token_chains": ["base", "ethereum", "bsc", "polygon", "arbitrum", "avalanche", "optimism", "solana"],
+        "ts": int(time.time()),
+        "flags": [],
+        "metrics": {},
+        "security": {},
+        "market": {},
+        "implementation": "atlasdata-independent",
+        "not_financial_advice": True,
+    }
+    flags = out["flags"]
+
+    pairs = []
+    try:
+        d = await _client.get(f"https://api.dexscreener.com/latest/dex/tokens/{address}", timeout=20,
+                              headers={"User-Agent": "x402atlas-qverdict/1.0"})
+        pairs = d.json().get("pairs") or []
+    except Exception as e:
+        out["market"] = {"error": str(e)[:160]}
+
+    def liq(pair):
+        try:
+            return float((pair.get("liquidity") or {}).get("usd") or 0)
+        except Exception:
+            return 0.0
+
+    matching = [p for p in pairs if (p.get("chainId") or "").lower() == dex_chain]
+    pair = sorted(matching or pairs, key=liq, reverse=True)[0] if (matching or pairs) else None
+    price = liquidity = volume24 = fdv = market_cap = None
+    buys24 = sells24 = 0
+    price_change = {}
+    age_days = None
+    if pair:
+        base_token = pair.get("baseToken") or {}
+        quote_token = pair.get("quoteToken") or {}
+        wanted = address.lower()
+        token_side = base_token
+        if str(quote_token.get("address") or "").lower() == wanted and str(base_token.get("address") or "").lower() != wanted:
+            token_side = quote_token
+        info = pair.get("info") or {}
+        tx24 = ((pair.get("txns") or {}).get("h24") or {})
+        buys24 = int(tx24.get("buys") or 0)
+        sells24 = int(tx24.get("sells") or 0)
+        volume = pair.get("volume") or {}
+        price_change = pair.get("priceChange") or {}
+        liquidity = liq(pair)
+        volume24 = _pct(volume.get("h24"))
+        fdv = _pct(pair.get("fdv"))
+        market_cap = _pct(pair.get("marketCap"))
+        try:
+            price = float(pair.get("priceUsd") or 0)
+        except Exception:
+            price = None
+        created = pair.get("pairCreatedAt")
+        if created:
+            age_days = round(max(0.0, (time.time() * 1000 - float(created)) / 86400000), 2)
+        out["page_url"] = pair.get("url")
+        out["image_url"] = info.get("imageUrl") or info.get("header") or info.get("openGraph")
+        out["market"] = {
+            "dex": pair.get("dexId"), "pair_address": pair.get("pairAddress"),
+            "pair_chain": pair.get("chainId"), "base_token": base_token,
+            "quote_token": quote_token, "token_side": token_side, "pair_created_at": pair.get("pairCreatedAt"),
+        }
+        out["metrics"] = {
+            "symbol": token_side.get("symbol"), "name": token_side.get("name"),
+            "price_usd": price, "liquidity_usd": liquidity, "volume_24h_usd": volume24,
+            "fdv_usd": fdv, "market_cap_usd": market_cap,
+            "txns_24h": {"buys": buys24, "sells": sells24, "total": buys24 + sells24},
+            "price_change_pct": {k: price_change.get(k) for k in ("m5", "h1", "h6", "h24") if price_change.get(k) is not None},
+            "pair_age_days": age_days,
+        }
+
+    security_flags = []
+    owner_pct = creator_pct = buy_tax = sell_tax = 0.0
+    holder_count = None
+    honeypot_state = None
+    if is_evm:
+        cid = _GOPLUS_CHAIN.get(chain, chain)
+        try:
+            g = await _client.get(f"https://api.gopluslabs.io/api/v1/token_security/{cid}",
+                                  params={"contract_addresses": address.lower()}, timeout=20)
+            gres = (g.json().get("result") or {}).get(address.lower()) or {}
+            watched = ("honeypot", "mintable", "proxy", "blacklist", "whitelist", "hidden_owner",
+                       "selfdestruct", "external_call", "freeze", "transfer_pausable", "tax")
+            security_flags = sorted(k for k, v in gres.items() if _truthy(v) and any(t in k for t in watched))
+            buy_tax = _pct(gres.get("buy_tax"))
+            sell_tax = _pct(gres.get("sell_tax"))
+            owner_pct = _pct(gres.get("owner_percent"))
+            creator_pct = _pct(gres.get("creator_percent"))
+            holder_count = gres.get("holder_count")
+            out["security"]["goplus"] = {
+                "flags": security_flags, "buy_tax": buy_tax, "sell_tax": sell_tax,
+                "holder_count": holder_count, "owner_percent": owner_pct, "creator_percent": creator_pct,
+                "is_open_source": gres.get("is_open_source"),
+            }
+            if _truthy(gres.get("is_honeypot")):
+                honeypot_state = True
+        except Exception as e:
+            out["security"]["goplus_error"] = str(e)[:140]
+        try:
+            h = await _client.get("https://api.honeypot.is/v2/IsHoneypot",
+                                  params={"address": address, "chainID": cid}, timeout=20)
+            hj = h.json()
+            honeypot_state = (hj.get("honeypotResult") or {}).get("isHoneypot")
+            out["security"]["honeypot"] = {
+                "is_honeypot": honeypot_state,
+                "risk": (hj.get("summary") or {}).get("risk"),
+                "risk_level": (hj.get("summary") or {}).get("riskLevel"),
+                "simulation_success": hj.get("simulationSuccess"),
+            }
+        except Exception as e:
+            out["security"]["honeypot_error"] = str(e)[:140]
+
+    flags.extend(security_flags)
+    if honeypot_state is True and "honeypot_confirmed" not in flags:
+        flags.append("honeypot_confirmed")
+    if not pair:
+        flags.append("no_dex_liquidity_found")
+    if liquidity is not None and liquidity < 10000:
+        flags.append("thin_liquidity")
+    if age_days is not None and age_days < 3:
+        flags.append("very_new_pair")
+    if sell_tax >= 5 or buy_tax >= 5:
+        flags.append("high_tax")
+    if owner_pct + creator_pct >= 0.2:
+        flags.append("concentrated_creator_or_owner")
+    if sells24 > buys24 * 1.5 and sells24 >= 10:
+        flags.append("sell_pressure")
+
+    score = 65.0 if not pair else 45.0
+    if pair:
+        score -= min(15, liquidity / 100000)
+        score -= min(8, volume24 / 200000)
+        if buys24 + sells24 >= 50:
+            score -= 4
+        if age_days is not None and age_days >= 14:
+            score -= 4
+    if honeypot_state is True:
+        score = 100
+    else:
+        score += min(30, len(security_flags) * 7)
+        score += min(24, (buy_tax + sell_tax) * 2)
+        score += min(20, (owner_pct + creator_pct) * 100)
+        if liquidity is not None and liquidity < 10000:
+            score += 14
+        if age_days is not None and age_days < 3:
+            score += 9
+        if sells24 > buys24 * 1.5 and sells24 >= 10:
+            score += 8
+    score = max(0, min(100, round(score, 1)))
+    if score >= 80:
+        grade, verdict = "F", "avoid"
+    elif score >= 60:
+        grade, verdict = "D", "high_risk"
+    elif score >= 40:
+        grade, verdict = "C", "caution"
+    elif score >= 22:
+        grade, verdict = "B", "acceptable_with_checks"
+    else:
+        grade, verdict = "A", "comparatively_strong"
+
+    symbol = ((out["metrics"].get("symbol") or "this token"))
+    if honeypot_state is True:
+        one = f"{symbol} fails the sellability screen, treat it as a trap."
+        roast = "The only thing pumping here is the exit liquidity alarm."
+    elif not pair:
+        one = f"No usable Dexscreener liquidity was found for {symbol}."
+        roast = "A token so quiet even the chart has not introduced itself."
+    elif score >= 60:
+        one = f"{symbol} has elevated risk from security, concentration, liquidity, or sell pressure."
+        roast = "This chart needs adult supervision and a smaller position size."
+    elif score >= 40:
+        one = f"{symbol} is tradable on paper, but the risk budget should stay small."
+        roast = "Not a honeypot, but not exactly a trust fall either."
+    else:
+        one = f"{symbol} shows comparatively cleaner security and market structure, subject to normal crypto risk."
+        roast = "Rare crypto compliment: the red flags are mostly just the candles."
+
+    out.update({
+        "grade": grade,
+        "verdict": verdict,
+        "safe": score < 40 and honeypot_state is not True,
+        "risk_score": score,
+        "one_liner": one,
+        "roast": roast,
+        "summary": {
+            "liquidity_usd": liquidity,
+            "volume_24h_usd": volume24,
+            "holder_count": holder_count,
+            "security_flag_count": len(security_flags),
+            "is_honeypot": honeypot_state,
+        },
+    })
+    return out
+
+
+def _qv_chain(chain):
+    return (chain or "base").strip() or "base"
+
+
+@app.get("/api/token/q-verdict")
+async def token_q_verdict(address: str = "", tokenAddress: str = "", chain: str = "base"):
+    return await _qverdict_result(address or tokenAddress, _qv_chain(chain))
+
+
+@app.get("/api/dashboard/q-verdict/resource")
+async def qverdict_resource_get(tokenAddress: str = "", address: str = "", chain: str = "base"):
+    return await _qverdict_result(tokenAddress or address, _qv_chain(chain))
+
+
+@app.post("/api/dashboard/q-verdict/resource")
+async def qverdict_resource_post(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    return await _qverdict_result(str(body.get("tokenAddress") or body.get("address") or ""), _qv_chain(str(body.get("chain") or "base")))
 
 
 @app.get("/api/token/{address}")
