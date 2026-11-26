@@ -2381,6 +2381,16 @@ async def search_web(q: str, limit: int = 8):
         return JSONResponse({"error": "q required"}, status_code=400)
     limit = max(1, min(int(limit or 8), 10))
     headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"}
+    cache_key = " ".join(query.lower().split())
+    cache = getattr(search_web, "_cache", {})
+    now_ts = time.time()
+    cached = cache.get(cache_key)
+    if cached and now_ts - cached[0] < 900:
+        payload = dict(cached[1])
+        payload["cached"] = True
+        payload["results"] = payload["results"][:limit]
+        payload["count"] = len(payload["results"])
+        return payload
 
     def clean_href(href):
         href = href or ""
@@ -2396,37 +2406,60 @@ async def search_web(q: str, limit: int = 8):
                 pass
         return href
 
+    def query_terms():
+        stop = {"the", "and", "for", "with", "from", "what", "when", "where", "final", "report"}
+        return [t for t in re.findall(r"[a-z0-9]{3,}", query.lower()) if t not in stop]
+
+    def relevance(row):
+        text = " ".join(str(row.get(k) or "") for k in ("title", "url", "snippet")).lower()
+        terms = query_terms()
+        if not terms:
+            return 1
+        overlap = sum(1 for term in terms if term in text)
+        phrase = 2 if query.lower()[:80] in text else 0
+        return overlap + phrase
+
+    def acceptable(row):
+        url = (row.get("url") or "").lower()
+        text = " ".join(str(row.get(k) or "") for k in ("title", "url", "snippet")).lower()
+        adult_markers = ("pornhub", "xvideos", "hentai", "xnxx", "xhamster", "onlyfans")
+        if any(mark in text for mark in adult_markers):
+            return False
+        if not url.startswith(("http://", "https://")) or "bing.com/ck/" in url:
+            return False
+        return True
+
     async def duckduckgo_results():
-        for url in ("https://html.duckduckgo.com/html/", "https://lite.duckduckgo.com/lite/"):
-            for _ in range(2):
-                try:
-                    r = await _client.get(url, params={"q": query}, timeout=16, headers=headers)
-                except Exception:
-                    break
-                if r.status_code != 200:
-                    continue
-                soup = BeautifulSoup(r.text, "html.parser")
-                rows = []
-                for node in soup.select(".result")[:limit]:
-                    a = node.select_one(".result__a")
-                    snip = node.select_one(".result__snippet")
-                    if a:
-                        rows.append({"title": a.get_text(" ", strip=True), "url": clean_href(a.get("href")),
-                                     "snippet": snip.get_text(" ", strip=True) if snip else ""})
-                if not rows:
-                    for a in soup.select("a.result-link")[:limit]:
-                        snip = ""
-                        row = a.find_parent("tr")
-                        if row:
-                            for sib in row.find_next_siblings("tr", limit=3):
-                                cand = sib.select_one(".result-snippet")
-                                if cand:
-                                    snip = cand.get_text(" ", strip=True)
-                                    break
-                        rows.append({"title": a.get_text(" ", strip=True), "url": clean_href(a.get("href")),
-                                     "snippet": snip})
-                if rows:
-                    return rows
+        urls = ("https://lite.duckduckgo.com/lite/", "https://html.duckduckgo.com/html/", "https://lite.duckduckgo.com/lite/")
+        for url in urls:
+            try:
+                r = await _client.get(url, params={"q": query}, timeout=16, headers=headers)
+            except Exception:
+                continue
+            if r.status_code != 200:
+                continue
+            soup = BeautifulSoup(r.text, "html.parser")
+            rows = []
+            for node in soup.select(".result")[:limit]:
+                a = node.select_one(".result__a")
+                snip = node.select_one(".result__snippet")
+                if a:
+                    rows.append({"title": a.get_text(" ", strip=True), "url": clean_href(a.get("href")),
+                                 "snippet": snip.get_text(" ", strip=True) if snip else ""})
+            if not rows:
+                for a in soup.select("a.result-link")[:limit]:
+                    snip = ""
+                    row = a.find_parent("tr")
+                    if row:
+                        for sib in row.find_next_siblings("tr", limit=3):
+                            cand = sib.select_one(".result-snippet")
+                            if cand:
+                                snip = cand.get_text(" ", strip=True)
+                                break
+                    rows.append({"title": a.get_text(" ", strip=True), "url": clean_href(a.get("href")),
+                                 "snippet": snip})
+            if rows:
+                return rows
         return []
 
     results = await duckduckgo_results()
@@ -2449,8 +2482,18 @@ async def search_web(q: str, limit: int = 8):
                 continue
             results.append({"title": a.get_text(" ", strip=True), "url": clean_href(a.get("href")),
                             "snippet": snip.get_text(" ", strip=True) if snip else ""})
-    results = [row for row in results if row.get("title") and row.get("url")][:limit]
-    return {"q": query, "results": results, "count": len(results), "engine": engine, "ts": int(time.time())}
+    results = [row for row in results if row.get("title") and row.get("url") and acceptable(row)]
+    if engine == "bing":
+        relevant = [row for row in results if relevance(row) > 0]
+        if relevant or results:
+            results = relevant
+    results = results[:limit]
+    payload = {"q": query, "results": results, "count": len(results), "engine": engine, "ts": int(time.time())}
+    if len(cache) > 500:
+        cache.clear()
+    cache[cache_key] = (now_ts, {"q": query, "results": results, "count": len(results), "engine": engine, "ts": payload["ts"]})
+    search_web._cache = cache
+    return payload
 
 
 async def _radar_json(path, url, headers=None):
