@@ -581,6 +581,12 @@ routes = {
         {"snapshot": "2026-11-24", "categories": [{"category": "search", "listings": 0, "demand_share_pct": 0.0, "supply_share_pct": 0.0, "gap_score": 0.0, "elite_rate_pct": 0.0, "median_price_usd": 0.0}]},
         tags=["x402", "market-data", "analysis", "gaps", "meta", "premium"],
     ),
+    "GET /api/fx/textile-quote": paid(
+        "$0.005", "Indicative Textile FX stablecoin-corridor quote on Celo mainnet. Converts token symbols and decimal amounts into atomic RFQ preview input, calls the public Textile FX v2 preview API, and returns normalized rate, fee, available liquidity, corridor metadata, and source attribution. Params: sell_token, buy_token, amount decimal optional, or atomic sell_amount/buy_amount. $0.005/call.",
+        {"chainId": 42220, "status": "preview", "sellToken": "USDC", "buyToken": "USDT", "sellAmount": "1000000", "buyAmount": "1000259", "source": "Textile FX RFQ preview"},
+        input_schema={"type": "object", "properties": {"sell_token": {"type": "string"}, "buy_token": {"type": "string"}, "amount": {"type": "number"}, "sell_amount": {"type": "string"}, "buy_amount": {"type": "string"}}},
+        tags=["fx", "stablecoin", "celo", "corridor", "quote", "textile", "payments"],
+    ),
     "GET /x402/ping": paid(
         "$0.001", "Liveness ping  -  returns ok + server timestamp. Agent health-check / rail-validation endpoint. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
         {"status": "ok", "ts": 1700000000},
@@ -1827,6 +1833,91 @@ async def l402_gate(request: Request, call_next):
         status_code=402,
         headers={"WWW-Authenticate": f'L402 macaroon="{token}", invoice="{inv["bolt11"]}"'},
     )
+
+
+TEXTILE_CELO_TOKENS = {
+    "CNGN": ("0xF6829D7393dAe24509eb1E52eE8e572e2E271a4f", 6),
+    "USDC": ("0xcebA9300f2b948710d2653dD7B07f33A8B32118C", 6),
+    "USDT": ("0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e", 6),
+    "USAT": ("0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771", 6),
+    "WARS": ("0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D", 18),
+    "WBRL": ("0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0", 18),
+    "WCOP": ("0x8a1D45e102e886510e891d2Ec656a708991e2D76", 18),
+    "WMXN": ("0x337E7456B420bD3481e7FA61fA9850343d610d34", 18),
+    "COPM": ("0xC92E8Fc2947E32F2B574CCA9F2F12097A71d5606", 18),
+    "IDRX": ("0x18Bc5bcC660cf2B9cE3cd51a404aFe1a0cBD3C22", 2),
+    "VGBP": ("0x7aE4265eCfc1F31bc0e112DfcFE3D78E01f4BB7f", 18),
+    "VCHF": ("0xc5eBeA9984c485EC5D58cA5a2D376620d93aF871", 18),
+    "CELO": ("0x471EcE3750Da237f93B8E339c536989b8978a438", 18),
+    "WETH": ("0xD221812de1BD094f35587EE8E174B07B6167D9Af", 18),
+    "G$": ("0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A", 18),
+    "GD": ("0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A", 18),
+}
+
+
+def _textile_token(symbol):
+    key = (symbol or "").upper().replace("₮", "T")
+    if key not in TEXTILE_CELO_TOKENS:
+        raise ValueError("unsupported token")
+    address, decimals = TEXTILE_CELO_TOKENS[key]
+    return key, address, decimals
+
+
+def _decimal_to_atomic(value, decimals):
+    from decimal import Decimal
+    return str(int((Decimal(str(value)) * (Decimal(10) ** decimals)).to_integral_value()))
+
+
+@app.get("/api/fx/textile-quote")
+async def textile_quote(sell_token: str = "USDC", buy_token: str = "USDT", amount: float | None = None, sell_amount: str | None = None, buy_amount: str | None = None):
+    try:
+        sell_sym, sell_addr, sell_dec = _textile_token(sell_token)
+        buy_sym, buy_addr, buy_dec = _textile_token(buy_token)
+        if sell_addr.lower() == buy_addr.lower():
+            return JSONResponse({"error": "sell_token and buy_token must differ"}, status_code=400)
+        payload = {"chainId": 42220, "sellToken": sell_addr, "buyToken": buy_addr}
+        if amount is not None:
+            payload["sellAmount"] = _decimal_to_atomic(amount, sell_dec)
+        elif sell_amount:
+            payload["sellAmount"] = str(int(sell_amount))
+        elif buy_amount:
+            payload["buyAmount"] = str(int(buy_amount))
+        else:
+            payload["sellAmount"] = _decimal_to_atomic(1, sell_dec)
+        r = await _client.post("https://api.textilecredit.com/v2/rfq/preview", json=payload, timeout=75)
+        try:
+            upstream = r.json()
+        except Exception:
+            upstream = {"raw": r.text[:1000]}
+        data = upstream.get("data", upstream) if isinstance(upstream, dict) else {"raw": upstream}
+        out = {
+            "chainId": 42220,
+            "corridor": f"{sell_sym}/{buy_sym}",
+            "sellToken": sell_sym,
+            "buyToken": buy_sym,
+            "sellTokenAddress": sell_addr,
+            "buyTokenAddress": buy_addr,
+            "sellDecimals": sell_dec,
+            "buyDecimals": buy_dec,
+            "request": payload,
+            "upstreamStatus": r.status_code,
+            "source": "Textile FX RFQ preview",
+            "sourceDocs": "https://docs.textilecredit.com/api/v2/rfq.html",
+            "note": "Indicative preview only, not a firm executable quote. Firm quotes require a taker wallet and proof of control.",
+        }
+        if isinstance(data, dict):
+            out.update(data)
+            for key, dec in (("sellAmount", sell_dec), ("buyAmount", buy_dec), ("feeAmount", sell_dec), ("takerPays", sell_dec), ("availableSellAmount", sell_dec)):
+                try:
+                    if key in out:
+                        out[key + "Decimal"] = int(out[key]) / (10 ** dec)
+                except Exception:
+                    pass
+        return out
+    except ValueError as e:
+        return JSONResponse({"error": str(e), "supportedTokens": sorted(TEXTILE_CELO_TOKENS)}, status_code=400)
+    except Exception as e:
+        return JSONResponse({"error": "textile preview failed", "detail": repr(e)[:300]}, status_code=502)
 
 
 @app.get("/l402/security/prompt-injection")
