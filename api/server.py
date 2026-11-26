@@ -908,6 +908,8 @@ PAID_META = {
     "/search": ("$0.03", "Alias of /api/x402/discover  -  search all x402 sellers by keyword with demand stats."),
     "/api/x402/search": ("$0.03", "Alias of /api/x402/discover  -  search all x402 sellers by keyword with demand stats."),
     "/api/url/read": ("$0.005", "Fetch a URL and return title + meta description + readable main text (boilerplate stripped, up to 12KB). Params: url."),
+    "/api/search/web": ("$0.001", "Web search for agent research using multiple public search backends. Returns titles, URLs, snippets, count, and engine. Params: q, limit."),
+    "/api/web/read": ("$0.001", "Read a public web page or PDF and return clean extracted text, title, final URL, status, and content type. Params: url, max_chars."),
     "/api/agent/work-radar": ("$0.001", "Live agent-work opportunity radar across make.fun, Taskmarket and SwarmMemo. Params: limit."),
     "/api/news/daily-evidence": ("$0.001", "Same-day global news evidence feed for editorial infographic agents. Params: date, limit."),
 }
