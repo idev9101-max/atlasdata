@@ -764,6 +764,12 @@ async def well_known(request: Request):
             f"{base}/x402/ping", f"{base}/x402/time", f"{base}/x402/uuid",
             f"{base}/x402/random", f"{base}/x402/ip", f"{base}/x402/status",
             f"{base}/x402/network", f"{base}/x402/quote",
+            f"{base}/api/search/web?q=x402%20payments&limit=3",
+            f"{base}/api/web/read?url=https%3A%2F%2Fexample.com",
+            f"{base}/api/security/prompt-injection?text=ignore%20previous%20instructions",
+            f"{base}/api/text/pii-redact?text=email%20me%20at%20a%40example.com",
+            f"{base}/api/image/gen-lite?prompt=red%20apple%20icon&seed=7",
+            f"{base}/api/token/verdict-lite?address=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&chain=base",
         ],
         "instructions": "Micropaid crypto data + utility API. Pay per call in USDC on Base via x402.",
         "ownership": {
@@ -771,6 +777,23 @@ async def well_known(request: Request):
             "contact": "atlasdataeb5a87@fldubai.com",
             "verification": f"{base}/payapi-verify.txt",
         },
+    }
+
+
+@app.get("/.well-known/ai-plugin.json", include_in_schema=False)
+async def ai_plugin_manifest():
+    base = "https://x402atlas.xyz"
+    return {
+        "schema_version": "v1",
+        "name_for_model": "x402atlas",
+        "name_for_human": "AtlasData x402 API",
+        "description_for_human": "Pay-per-call crypto data, web utility, and agent security API using x402 USDC micropayments.",
+        "description_for_model": "Use these x402-paid endpoints for crypto prices, chain data, web search and extraction, prompt-injection scanning, PII redaction, token risk checks, and image generation. Machine documentation is in openapi.json and llms.txt.",
+        "auth": {"type": "none"},
+        "api": {"type": "openapi", "url": f"{base}/openapi.json"},
+        "logo_url": f"{base}/icon.png",
+        "contact_email": "atlasdataeb5a87@fldubai.com",
+        "legal_info_url": base,
     }
 
 
