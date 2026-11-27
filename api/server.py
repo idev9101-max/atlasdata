@@ -5363,6 +5363,41 @@ MCP_TOOL_DEFS = [
         "tags": ["weather", "forecast", "climate", "market-data"],
     },
     {
+        "name": "eth_contract_info",
+        "price": "$0.003",
+        "description": "Inspect an Ethereum contract: bytecode presence, ERC20 metadata, symbol, decimals, total supply, and contract classification.",
+        "inputSchema": {"type": "object", "properties": {"address": {"type": "string", "description": "Ethereum contract address"}}, "required": ["address"]},
+        "tags": ["ethereum", "contract", "token", "security"],
+    },
+    {
+        "name": "eth_nft_metadata",
+        "price": "$0.005",
+        "description": "Resolve ERC721 or ERC1155 NFT metadata on Ethereum, including tokenURI/uri, IPFS or Arweave metadata, image URL, name, and attributes.",
+        "inputSchema": {"type": "object", "properties": {"contract": {"type": "string"}, "token_id": {"type": "integer"}, "standard": {"type": "string", "default": "auto"}}, "required": ["contract", "token_id"]},
+        "tags": ["ethereum", "nft", "metadata", "erc721", "erc1155"],
+    },
+    {
+        "name": "eth_erc721_tokens",
+        "price": "$0.005",
+        "description": "List ERC721 token IDs owned by a wallet in an enumerable Ethereum NFT collection using tokenOfOwnerByIndex.",
+        "inputSchema": {"type": "object", "properties": {"contract": {"type": "string"}, "owner": {"type": "string"}, "limit": {"type": "integer", "default": 50, "maximum": 100}}, "required": ["contract", "owner"]},
+        "tags": ["ethereum", "nft", "wallet", "erc721"],
+    },
+    {
+        "name": "eth_erc20_transfers",
+        "price": "$0.004",
+        "description": "Read recent Ethereum ERC20 Transfer logs for a token, optionally filtered by wallet, with block range and decoded transfer fields.",
+        "inputSchema": {"type": "object", "properties": {"contract": {"type": "string"}, "address": {"type": "string"}, "from_block": {"type": "string"}, "to_block": {"type": "string", "default": "latest"}, "limit": {"type": "integer", "default": 50, "maximum": 200}}, "required": ["contract"]},
+        "tags": ["ethereum", "erc20", "transfers", "logs"],
+    },
+    {
+        "name": "eth_resolve_ens",
+        "price": "$0.003",
+        "description": "Resolve an Ethereum ENS name to an address or reverse-resolve an address to its primary ENS name.",
+        "inputSchema": {"type": "object", "properties": {"input": {"type": "string", "examples": ["vitalik.eth"]}}, "required": ["input"]},
+        "tags": ["ethereum", "ens", "identity", "resolver"],
+    },
+    {
         "name": "token_verdict",
         "price": "$0.02",
         "description": "Screen a token before trading: algorithmic grade, one-line verdict, roast, risk score, security flags, liquidity, volume, momentum, holder concentration, honeypot status, and live market metrics. Supports EVM contracts and Solana mints.",
@@ -5437,6 +5472,13 @@ def _mcp_payment_from_params(params):
         return None
 
 
+def _first_route_endpoint(path):
+    for route in app.routes:
+        if getattr(route, "path", None) == path:
+            return route.endpoint
+    raise ValueError("missing route: " + path)
+
+
 async def _mcp_execute_tool(name, arguments):
     if name == "scan_prompt_injection":
         return await prompt_injection_detect(str(arguments.get("text") or ""))
@@ -5466,6 +5508,16 @@ async def _mcp_execute_tool(name, arguments):
             except Exception:
                 return {"error": "weather request failed", "status": result.status_code}
         return result
+    if name == "eth_contract_info":
+        return await _first_route_endpoint("/api/chain/contract/{address}")(str(arguments.get("address") or ""))
+    if name == "eth_nft_metadata":
+        return await chain_nft_metadata(str(arguments.get("contract") or ""), int(arguments.get("token_id") or 0), None, str(arguments.get("standard") or "auto"))
+    if name == "eth_erc721_tokens":
+        return await chain_erc721_tokens(str(arguments.get("contract") or ""), str(arguments.get("owner") or ""), min(100, max(1, int(arguments.get("limit") or 50))))
+    if name == "eth_erc20_transfers":
+        return await chain_erc20_transfers_q(str(arguments.get("contract") or ""), str(arguments.get("address") or ""), str(arguments.get("from_block") or ""), str(arguments.get("to_block") or "latest"), min(200, max(1, int(arguments.get("limit") or 50))))
+    if name == "eth_resolve_ens":
+        return await chain_ens(str(arguments.get("input") or ""))
     if name == "token_verdict":
         result = await _qverdict_result(str(arguments.get("tokenAddress") or arguments.get("address") or ""), str(arguments.get("chain") or "base"))
         if isinstance(result, JSONResponse):
