@@ -243,6 +243,90 @@ routes = {
         {"value": "13", "classification": "Extreme Fear"},
         tags=["sentiment", "market-data"],
     ),
+    "GET /api/chain/block-number": paid(
+        "$0.001", "Latest Ethereum block height via eth_blockNumber. Compatible with OneSource-style chain endpoints. Query: network=ethereum. No account, no API key. $0.001/call.",
+        {"data": {"result": "0x194675f"}},
+        input_schema={"type":"object","properties":{"network":{"type":"string"}}},
+        tags=["ethereum","rpc","blockchain","chain","block"],
+    ),
+    "GET /api/chain/chain-id": paid(
+        "$0.001", "Ethereum chain ID via eth_chainId. Query: network=ethereum. No account, no API key. $0.001/call.",
+        {"data": {"result": "0x1"}},
+        input_schema={"type":"object","properties":{"network":{"type":"string"}}},
+        tags=["ethereum","rpc","chain"],
+    ),
+    "GET /api/chain/nonce/[address]": paid(
+        "$0.001", "Next transaction nonce for any Ethereum wallet via eth_getTransactionCount. Path: /api/chain/nonce/<address>. No account, no API key. $0.001/call.",
+        {"data": {"nonce": "0x4d2"}},
+        path_params={"type":"object","properties":{"address":{"type":"string"}},"required":["address"]},
+        tags=["ethereum","wallet","nonce","rpc"],
+    ),
+    "GET /api/chain/code/[address]": paid(
+        "$0.002", "Check whether an Ethereum address is a contract via eth_getCode. Path: /api/chain/code/<address>. No account, no API key. $0.002/call.",
+        {"data": {"code": "0x", "is_contract": False}},
+        path_params={"type":"object","properties":{"address":{"type":"string"}},"required":["address"]},
+        tags=["ethereum","contract","rpc"],
+    ),
+    "GET /api/chain/block/[number]": paid(
+        "$0.001", "Ethereum block header and transaction hashes by number, tag, or hex. Path: /api/chain/block/latest. No account, no API key. $0.001/call.",
+        {"data": {"result": {"number":"0x194675f","transactions":[]}}},
+        path_params={"type":"object","properties":{"number":{"type":"string"}},"required":["number"]},
+        tags=["ethereum","block","rpc"],
+    ),
+    "GET /api/chain/tx/[hash]": paid(
+        "$0.003", "Full Ethereum transaction details by hash via eth_getTransactionByHash. No account, no API key. $0.003/call.",
+        {"data": {"result": {"hash":"0x..."}}},
+        path_params={"type":"object","properties":{"hash":{"type":"string"}},"required":["hash"]},
+        tags=["ethereum","transaction","rpc"],
+    ),
+    "GET /api/chain/receipt/[hash]": paid(
+        "$0.003", "Ethereum transaction receipt via eth_getTransactionReceipt, including status, gas and event logs. No account, no API key. $0.003/call.",
+        {"data": {"result": {"status":"0x1","logs":[]}}},
+        path_params={"type":"object","properties":{"hash":{"type":"string"}},"required":["hash"]},
+        tags=["ethereum","transaction","receipt","rpc"],
+    ),
+    "GET /api/chain/storage": paid(
+        "$0.002", "Read a raw Ethereum contract storage slot via eth_getStorageAt. Query: contract, slot, network=ethereum. No account, no API key. $0.002/call.",
+        {"data": {"value":"0x0000000000000000000000000000000000000000000000000000000000000000"}},
+        input_schema={"type":"object","properties":{"contract":{"type":"string"},"slot":{"type":"string"}},"required":["contract","slot"]},
+        tags=["ethereum","contract","storage","rpc"],
+    ),
+    "GET /api/chain/erc20-balance": paid(
+        "$0.002", "ERC20 token balance for any Ethereum wallet via balanceOf eth_call, with token metadata. Query: address, contract, network=ethereum. No account, no API key. $0.002/call.",
+        {"data": {"balance":"1234567890","decimals":6,"symbol":"USDT"}},
+        input_schema={"type":"object","properties":{"address":{"type":"string"},"contract":{"type":"string"}},"required":["address","contract"]},
+        tags=["ethereum","erc20","balance","wallet","token"],
+    ),
+    "GET /api/chain/total-supply": paid(
+        "$0.002", "Total supply of an ERC20 or ERC721 token contract via totalSupply, with token metadata. Query: contract, network=ethereum. No account, no API key. $0.002/call.",
+        {"data": {"total_supply":"39283948340000000","decimals":6,"symbol":"USDT"}},
+        input_schema={"type":"object","properties":{"contract":{"type":"string"}},"required":["contract"]},
+        tags=["ethereum","erc20","supply","token"],
+    ),
+    "GET /api/chain/allowance": paid(
+        "$0.002", "ERC20 allowance via allowance(owner,spender), with token metadata. Query: contract, owner, spender, network=ethereum. No account, no API key. $0.002/call.",
+        {"data": {"allowance":"0","decimals":6,"symbol":"USDT"}},
+        input_schema={"type":"object","properties":{"contract":{"type":"string"},"owner":{"type":"string"},"spender":{"type":"string"}},"required":["contract","owner","spender"]},
+        tags=["ethereum","erc20","allowance","token"],
+    ),
+    "GET /api/chain/contract/[address]": paid(
+        "$0.003", "Best-effort Ethereum contract introspection: bytecode presence, token metadata and ERC20-like classification. Path: /api/chain/contract/<address>. No account, no API key. $0.003/call.",
+        {"data": {"is_contract":True,"is_erc20":True,"symbol":"USDT"}},
+        path_params={"type":"object","properties":{"address":{"type":"string"}},"required":["address"]},
+        tags=["ethereum","contract","token","introspection"],
+    ),
+    "POST /api/chain/call": paid(
+        "$0.002", "Simulate a read-only Ethereum contract call via eth_call. POST JSON {to,data,from?,block?}. No account, no API key. $0.002/call.",
+        {"data": {"result":"0x"}},
+        input_schema={"type":"object","properties":{"to":{"type":"string"},"data":{"type":"string"}},"required":["to","data"]},
+        tags=["ethereum","contract","call","rpc"],
+    ),
+    "POST /api/chain/estimate-gas": paid(
+        "$0.002", "Estimate gas for an Ethereum transaction via eth_estimateGas. POST JSON {to,data,value?,from?}. No account, no API key. $0.002/call.",
+        {"data": {"gas":"0x5208"}},
+        input_schema={"type":"object","properties":{"to":{"type":"string"},"data":{"type":"string"}},"required":["to"]},
+        tags=["ethereum","gas","estimate","rpc"],
+    ),
     "GET /api/weather": paid(
         "$0.001", "Live global weather report for any place or coordinates: geocoded location, current conditions, apparent temperature, precipitation, wind, pressure, next 24h hourly forecast, and 7-day outlook using Open-Meteo. Params: place=London or lat/lon. No account, no API key. $0.001/call.",
         {"place": "London", "current": {"temperature_c": 12.4, "weather": "light rain"}, "hourly": [], "daily": []},
@@ -498,23 +582,6 @@ routes = {
         path_params={"type": "object", "properties": {"token": {"type": "string"}, "address": {"type": "string"}}, "required": ["token", "address"]},
         tags=["chain", "base", "erc20", "primitive"],
     ),
-    "GET /api/chain/block-number": paid(
-        "$0.001", "Current Base block height (chain tip).",
-        {"block": 37000000, "hex": "0x2345678"},
-        tags=["chain", "base", "primitive"],
-    ),
-    "GET /api/chain/nonce/[address]": paid(
-        "$0.005", "Next transaction nonce for an address on Base.",
-        {"address": "0x...", "nonce": 17},
-        path_params={"type": "object", "properties": {"address": {"type": "string"}}, "required": ["address"]},
-        tags=["chain", "base", "primitive"],
-    ),
-    "GET /api/chain/contract/[address]": paid(
-        "$0.01", "Is the address a contract on Base? Bytecode presence + size.",
-        {"address": "0x...", "is_contract": True, "code_bytes": 1234},
-        path_params={"type": "object", "properties": {"address": {"type": "string"}}, "required": ["address"]},
-        tags=["chain", "base", "contract", "primitive"],
-    ),
     "GET /api/chain/total-supply/[token]": paid(
         "$0.005", "Total supply of an ERC-20/ERC-721 contract on Base.",
         {"token": "0x8335...", "total_supply_raw": "1000000", "decimals": 6, "supply": "1.0"},
@@ -526,40 +593,11 @@ routes = {
         {"chain_id": 8453, "block": 37000000, "gas_price_gwei": "0.05"},
         tags=["chain", "base", "primitive"],
     ),
-    "GET /api/chain/tx/[hash]": paid(
-        "$0.02", "status, from/to, value, gas used, block  -  Transaction lookup on Base.",
-        {"hash": "0x...", "status": "success", "from": "0x...", "to": "0x...", "value_wei": "1000000", "block": 37000000},
-        path_params={"type": "object", "properties": {"hash": {"type": "string"}}, "required": ["hash"]},
-        tags=["chain", "base", "tx", "primitive"],
-    ),
-    "GET /api/chain/block/[number]": paid(
-        "$0.005", "Block header info on Base by number or 'latest': timestamp, tx count, gas used.",
-        {"number": 37000000, "timestamp": 1700000000, "tx_count": 120, "gas_used": "5000000"},
-        path_params={"type": "object", "properties": {"number": {"type": "string"}}, "required": ["number"]},
-        tags=["chain", "base", "block", "primitive"],
-    ),
     "GET /api/chain/erc20-transfers/[token]/[address]": paid(
         "$0.02", "Recent ERC-20 Transfer events involving an address on Base (last ~10k blocks).",
         {"token": "0x8335...", "address": "0x...", "transfers": [{"from": "0x...", "to": "0x...", "raw": "1000000", "block": 37000000}]},
         path_params={"type": "object", "properties": {"token": {"type": "string"}, "address": {"type": "string"}}, "required": ["token", "address"]},
         tags=["chain", "base", "erc20", "events", "primitive"],
-    ),
-    "GET /api/chain/chain-id": paid(
-        "$0.001", "Base chain id + network metadata  -  hex and decimal chain id, name, native currency. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
-        {"chain_id_hex": "0x2105", "chain_id": 8453, "name": "Base", "currency": "ETH"},
-        tags=["chain", "base", "primitive"],
-    ),
-    "GET /api/chain/receipt/[hash]": paid(
-        "$0.005", "Transaction receipt on Base  -  status, gas used, logs count, block, contract address if a deploy. Params: tx hash. No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
-        {"hash": "0x...", "status": 1, "gas_used": 21000, "block": 37000000},
-        path_params={"type": "object", "properties": {"hash": {"type": "string"}}, "required": ["hash"]},
-        tags=["chain", "base", "receipt", "primitive"],
-    ),
-    "GET /api/chain/code/[address]": paid(
-        "$0.002", "Contract bytecode presence + size at an address on Base (eth_getCode). No account, no API key.   -  $0.002/call. Support: atlasdataeb5a87@fldubai.com",
-        {"address": "0x...", "is_contract": True, "code_size": 5200},
-        path_params={"type": "object", "properties": {"address": {"type": "string"}}, "required": ["address"]},
-        tags=["chain", "base", "contract", "primitive"],
     ),
     "GET /api/chain/storage/[address]/[slot]": paid(
         "$0.005", "Raw storage slot read on Base (eth_getStorageAt)  -  params: contract address, slot index (decimal or 0x). No account, no API key.   -  $0.001/call. Support: atlasdataeb5a87@fldubai.com",
@@ -1420,6 +1458,188 @@ _WEATHER_CODES = {
     77: "snow grains", 80: "light rain showers", 81: "rain showers", 82: "violent rain showers",
     85: "light snow showers", 86: "heavy snow showers", 95: "thunderstorm", 96: "thunderstorm with hail", 99: "severe thunderstorm with hail",
 }
+
+
+# OneSource-compatible Ethereum chain endpoints, backed by independent public RPCs.
+ETH_RPCS = [
+    "https://ethereum-rpc.publicnode.com",
+    "https://cloudflare-eth.com",
+    "https://eth-mainnet.public.blastapi.io",
+    "https://eth.drpc.org",
+]
+
+
+async def eth_rpc(method: str, params: list):
+    payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+    last = None
+    for endpoint in ETH_RPCS:
+        try:
+            r = await _client.post(endpoint, json=payload, timeout=12,
+                                   headers={"User-Agent": "x402atlas-chain/1.0"})
+            d = r.json()
+            if "result" in d:
+                return d.get("result")
+            last = d.get("error")
+        except Exception as e:
+            last = str(e)[:100]
+    raise RuntimeError(str(last or "ethereum rpc unavailable")[:160])
+
+
+def _chain_meta(endpoint: str):
+    return {"cost_usdc": "see payment challenge", "endpoint": endpoint,
+            "payment_chain": "base", "payment_token": "USDC", "upstream": "public-ethereum-rpc"}
+
+
+def _addr32(addr: str) -> str:
+    a = addr.lower().removeprefix("0x")
+    if len(a) != 40 or any(c not in "0123456789abcdef" for c in a):
+        raise ValueError("invalid address")
+    return "0" * 24 + a
+
+
+def _hexword(v: int) -> str:
+    return f"{v:064x}"
+
+
+def _decode_uint(h):
+    if not h or h == "0x":
+        return None
+    try:
+        return str(int(h, 16))
+    except Exception:
+        return None
+
+
+def _decode_abi_string(h):
+    if not h or h == "0x":
+        return None
+    try:
+        b = bytes.fromhex(h[2:])
+        if len(b) >= 64:
+            off = int.from_bytes(b[:32], "big")
+            ln = int.from_bytes(b[32:64], "big")
+            if off + 32 <= len(b):
+                ln = int.from_bytes(b[off:off+32], "big")
+                raw = b[off+32:off+32+ln]
+            else:
+                raw = b[64:64+ln]
+        else:
+            raw = b[:32].rstrip(b"\0")
+        return raw.decode("utf-8", "replace").strip("\0")
+    except Exception:
+        return None
+
+
+async def _eth_call_mainnet(to: str, data: str, block: str = "latest"):
+    return await eth_rpc("eth_call", [{"to": to, "data": data}, block])
+
+
+async def _token_meta(contract: str):
+    dec = _decode_uint(await _eth_call_mainnet(contract, "0x313ce567"))
+    sym = _decode_abi_string(await _eth_call_mainnet(contract, "0x95d89b41"))
+    name = _decode_abi_string(await _eth_call_mainnet(contract, "0x06fdde03"))
+    return {"decimals": int(dec or 18), "symbol": sym or "", "name": name or ""}
+
+
+@app.get("/api/chain/block-number")
+async def chain_block_number():
+    return {"data": {"result": await eth_rpc("eth_blockNumber", [])}, "meta": _chain_meta("/api/chain/block-number")}
+
+
+@app.get("/api/chain/chain-id")
+async def chain_chain_id():
+    return {"data": {"result": await eth_rpc("eth_chainId", [])}, "meta": _chain_meta("/api/chain/chain-id")}
+
+
+@app.get("/api/chain/nonce/{address}")
+async def chain_nonce(address: str):
+    return {"data": {"nonce": await eth_rpc("eth_getTransactionCount", [address, "latest"])}, "meta": _chain_meta(f"/api/chain/nonce/{address}")}
+
+
+@app.get("/api/chain/code/{address}")
+async def chain_code(address: str):
+    code = await eth_rpc("eth_getCode", [address, "latest"])
+    return {"data": {"code": code, "is_contract": bool(code and code != "0x")}, "meta": _chain_meta(f"/api/chain/code/{address}")}
+
+
+@app.get("/api/chain/block/{number}")
+async def chain_block(number: str):
+    tag = number if number in ("latest", "pending", "earliest", "safe", "finalized") or number.startswith("0x") else hex(int(number))
+    return {"data": {"result": await eth_rpc("eth_getBlockByNumber", [tag, False])}, "meta": _chain_meta(f"/api/chain/block/{number}")}
+
+
+@app.get("/api/chain/tx/{txhash}")
+async def chain_tx(txhash: str):
+    return {"data": {"result": await eth_rpc("eth_getTransactionByHash", [txhash])}, "meta": _chain_meta(f"/api/chain/tx/{txhash}")}
+
+
+@app.get("/api/chain/receipt/{txhash}")
+async def chain_receipt(txhash: str):
+    return {"data": {"result": await eth_rpc("eth_getTransactionReceipt", [txhash])}, "meta": _chain_meta(f"/api/chain/receipt/{txhash}")}
+
+
+@app.get("/api/chain/storage")
+async def chain_storage(contract: str, slot: str, block: str = "latest"):
+    return {"data": {"value": await eth_rpc("eth_getStorageAt", [contract, slot, block])}, "meta": _chain_meta("/api/chain/storage")}
+
+
+@app.get("/api/chain/erc20-balance")
+async def chain_erc20_balance(address: str, contract: str):
+    try:
+        data = "0x70a08231" + _addr32(address)
+        bal = _decode_uint(await _eth_call_mainnet(contract, data))
+        meta = await _token_meta(contract)
+        return {"data": {"account": address.lower(), "contract_address": contract.lower(), "balance": bal or "0", **meta}, "meta": _chain_meta("/api/chain/erc20-balance")}
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@app.get("/api/chain/total-supply")
+async def chain_total_supply(contract: str):
+    supply = _decode_uint(await _eth_call_mainnet(contract, "0x18160ddd"))
+    meta = await _token_meta(contract)
+    return {"data": {"contract_address": contract.lower(), "total_supply": supply or "0", **meta}, "meta": _chain_meta("/api/chain/total-supply")}
+
+
+@app.get("/api/chain/allowance")
+async def chain_allowance(contract: str, owner: str, spender: str):
+    try:
+        data = "0xdd62ed3e" + _addr32(owner) + _addr32(spender)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    allowance = _decode_uint(await _eth_call_mainnet(contract, data))
+    meta = await _token_meta(contract)
+    return {"data": {"token": contract.lower(), "owner": owner.lower(), "spender": spender.lower(), "allowance": allowance or "0", **meta}, "meta": _chain_meta("/api/chain/allowance")}
+
+
+@app.get("/api/chain/contract/{address}")
+async def chain_contract(address: str):
+    code = await eth_rpc("eth_getCode", [address, "latest"])
+    out = {"address": address.lower(), "code_length": max(0, (len(code or "") - 2) // 2), "is_contract": bool(code and code != "0x")}
+    if out["is_contract"]:
+        meta = await _token_meta(address)
+        out.update(meta)
+        out["is_erc20"] = bool(meta.get("symbol") or meta.get("name"))
+        out["interfaces"] = ["ERC20"] if out["is_erc20"] else []
+    return {"data": out, "meta": _chain_meta(f"/api/chain/contract/{address}")}
+
+
+@app.post("/api/chain/call")
+async def chain_call(request: Request):
+    body = await request.json()
+    tx = {"to": body.get("to"), "data": body.get("data", "0x")}
+    if body.get("from"):
+        tx["from"] = body["from"]
+    if body.get("value"):
+        tx["value"] = body["value"]
+    return {"data": {"result": await eth_rpc("eth_call", [tx, body.get("block") or "latest"])}, "meta": _chain_meta("/api/chain/call")}
+
+
+@app.post("/api/chain/estimate-gas")
+async def chain_estimate_gas(request: Request):
+    body = await request.json()
+    tx = {k: body[k] for k in ("from", "to", "data", "value") if body.get(k) is not None}
+    return {"data": {"gas": await eth_rpc("eth_estimateGas", [tx])}, "meta": _chain_meta("/api/chain/estimate-gas")}
 
 
 @app.get("/api/weather")
