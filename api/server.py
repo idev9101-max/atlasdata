@@ -327,6 +327,36 @@ routes = {
         input_schema={"type":"object","properties":{"to":{"type":"string"},"data":{"type":"string"}},"required":["to"]},
         tags=["ethereum","gas","estimate","rpc"],
     ),
+    "GET /api/chain/erc721-tokens": paid(
+        "$0.005", "List ERC721 token IDs owned by an Ethereum wallet in an enumerable collection via tokenOfOwnerByIndex. Query: contract, owner, optional limit. No account, no API key. $0.005/call.",
+        {"data": {"token_ids":["1"],"count":1}},
+        input_schema={"type":"object","properties":{"contract":{"type":"string"},"owner":{"type":"string"},"limit":{"type":"integer"}},"required":["contract","owner"]},
+        tags=["ethereum","erc721","nft","wallet","tokens"],
+    ),
+    "GET /api/chain/erc1155-balance": paid(
+        "$0.002", "ERC1155 token balance via balanceOf(owner,id). Query: contract, owner, id, network=ethereum. No account, no API key. $0.002/call.",
+        {"data": {"balance":"1"}},
+        input_schema={"type":"object","properties":{"contract":{"type":"string"},"owner":{"type":"string"},"id":{"type":"integer"}},"required":["contract","owner","id"]},
+        tags=["ethereum","erc1155","nft","balance"],
+    ),
+    "GET /api/chain/nft-metadata": paid(
+        "$0.005", "NFT metadata for ERC721 or ERC1155 tokens via tokenURI/uri, including IPFS/Arweave resolution when possible. Query: contract, token_id/id, optional standard. No account, no API key. $0.005/call.",
+        {"data": {"token_uri":"ipfs://...","metadata":{"name":"NFT","image":"ipfs://..."}}},
+        input_schema={"type":"object","properties":{"contract":{"type":"string"},"token_id":{"type":"integer"},"standard":{"type":"string"}},"required":["contract","token_id"]},
+        tags=["ethereum","nft","metadata","erc721","erc1155"],
+    ),
+    "GET /api/chain/proxy/[address]": paid(
+        "$0.003", "Detect upgradeable proxy patterns on Ethereum, including EIP-1967 implementation/admin slots and UUPS markers. Path: /api/chain/proxy/<address>. No account, no API key. $0.003/call.",
+        {"data": {"is_proxy":True,"proxy_type":"eip1967","implementation":"0x..."}},
+        path_params={"type":"object","properties":{"address":{"type":"string"}},"required":["address"]},
+        tags=["ethereum","contract","proxy","security"],
+    ),
+    "GET /api/chain/pending": paid(
+        "$0.002", "Ethereum pending block transactions not yet mined via eth_getBlockByNumber(pending). Query: optional limit. No account, no API key. $0.002/call.",
+        {"data": {"result":{"number":"pending","transactions":[]}}},
+        input_schema={"type":"object","properties":{"limit":{"type":"integer"}}},
+        tags=["ethereum","pending","mempool","block"],
+    ),
     "GET /api/chain/live-balance": paid(
         "$0.002", "Live Ethereum wallet balance plus balances for caller-supplied ERC20 tokens. Query: address, optional comma-separated tokens, network=ethereum. No account, no API key. $0.002/call.",
         {"data": {"eth_balance":"0xde0b6b3a7640000","tokens":[]}},
@@ -1666,6 +1696,117 @@ async def chain_estimate_gas(request: Request):
     return {"data": {"gas": await eth_rpc("eth_estimateGas", [tx])}, "meta": _chain_meta("/api/chain/estimate-gas")}
 
 
+
+
+
+
+@app.get("/api/chain/erc721-tokens")
+async def chain_erc721_tokens(contract: str, owner: str, limit: int = 50):
+    try:
+        count = int((await _eth_call_mainnet(contract, "0x70a08231" + _addr32(owner))) or "0x0", 16)
+    except Exception as e:
+        return JSONResponse({"error": "balanceOf failed", "detail": str(e)[:100]}, status_code=502)
+    ids, errors = [], 0
+    for i in range(min(count, max(1, min(limit, 200)))):
+        try:
+            data = "0x2f745c59" + _addr32(owner) + _hexword(i)
+            raw = _decode_uint(await _eth_call_mainnet(contract, data))
+            if raw is not None:
+                ids.append(raw)
+        except Exception:
+            errors += 1
+            break
+    return {"data": {"contract": contract.lower(), "owner": owner.lower(), "balance": count,
+                     "count": len(ids), "token_ids": ids, "enumerable_errors": errors},
+            "meta": _chain_meta("/api/chain/erc721-tokens")}
+
+
+@app.get("/api/chain/erc1155-balance")
+async def chain_erc1155_balance(contract: str, owner: str, id: int):
+    try:
+        data = "0x00fdd58e" + _addr32(owner) + _hexword(int(id))
+        bal = _decode_uint(await _eth_call_mainnet(contract, data))
+        return {"data": {"contract": contract.lower(), "owner": owner.lower(), "id": int(id), "balance": bal or "0"},
+                "meta": _chain_meta("/api/chain/erc1155-balance")}
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+def _uri_to_http(uri: str):
+    if uri.startswith("ipfs://"):
+        return "https://ipfs.io/ipfs/" + uri[7:].lstrip("/")
+    if uri.startswith("ar://"):
+        return "https://arweave.net/" + uri[5:]
+    return uri
+
+
+@app.get("/api/chain/nft-metadata")
+async def chain_nft_metadata(contract: str, token_id: int, id: int | None = None, standard: str = "auto"):
+    tid = int(id if id is not None else token_id)
+    std = (standard or "auto").lower()
+    uri = None
+    used = None
+    if std in ("auto", "erc721", "721"):
+        try:
+            uri = _decode_abi_string(await _eth_call_mainnet(contract, "0xc87b56dd" + _hexword(tid)))
+            used = "erc721" if uri else None
+        except Exception:
+            pass
+    if not uri and std in ("auto", "erc1155", "1155"):
+        try:
+            uri = _decode_abi_string(await _eth_call_mainnet(contract, "0x0e89341c" + _hexword(tid)))
+            used = "erc1155" if uri else used
+        except Exception:
+            pass
+    if not uri:
+        return JSONResponse({"error": "token uri unavailable"}, status_code=404)
+    uri = uri.replace("{id}", f"{tid:064x}")
+    meta = None
+    url = _uri_to_http(uri)
+    try:
+        r = await _client.get(url, timeout=15, follow_redirects=True,
+                              headers={"User-Agent": "x402atlas-nft/1.0"})
+        if r.status_code == 200 and r.headers.get("content-type", "").startswith("application/json"):
+            meta = r.json()
+        elif r.status_code == 200:
+            try: meta = r.json()
+            except Exception: meta = None
+    except Exception:
+        pass
+    if isinstance(meta, dict) and meta.get("image"):
+        meta["image_url"] = _uri_to_http(str(meta.get("image")))
+    return {"data": {"contract": contract.lower(), "token_id": tid, "standard": used,
+                     "token_uri": uri, "resolved_uri": url, "metadata": meta},
+            "meta": _chain_meta("/api/chain/nft-metadata")}
+
+
+@app.get("/api/chain/proxy/{address}")
+async def chain_proxy(address: str):
+    impl_slot = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+    admin_slot = "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1678d6a25bd461566d57"
+    code = await eth_rpc("eth_getCode", [address, "latest"])
+    impl_raw = await eth_rpc("eth_getStorageAt", [address, impl_slot, "latest"])
+    admin_raw = await eth_rpc("eth_getStorageAt", [address, admin_slot, "latest"])
+    impl = "0x" + (impl_raw or "")[-40:]
+    admin = "0x" + (admin_raw or "")[-40:]
+    has_impl = bool(impl_raw and int(impl_raw, 16))
+    ptype = None
+    if has_impl:
+        ptype = "eip1967-transparent"
+    elif code and "360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc" in code.lower():
+        ptype = "uups-marker"
+    return {"data": {"address": address.lower(), "is_proxy": bool(ptype), "proxy_type": ptype,
+                     "implementation": impl if has_impl else None, "admin": admin if admin_raw and int(admin_raw, 16) else None,
+                     "code_bytes": max(0, (len(code or "") - 2) // 2)},
+            "meta": _chain_meta(f"/api/chain/proxy/{address}")}
+
+
+@app.get("/api/chain/pending")
+async def chain_pending(limit: int = 100):
+    blk = await eth_rpc("eth_getBlockByNumber", ["pending", False])
+    if isinstance(blk, dict) and isinstance(blk.get("transactions"), list):
+        blk = dict(blk); blk["transaction_count"] = len(blk["transactions"]); blk["transactions"] = blk["transactions"][:max(1, min(limit, 500))]
+    return {"data": {"result": blk}, "meta": _chain_meta("/api/chain/pending")}
 
 
 @app.get("/api/chain/live-balance")
