@@ -593,6 +593,12 @@ routes = {
         input_schema={"type": "object", "properties": {"lat": {"type": "number"}, "lon": {"type": "number"}}, "required": ["lat", "lon"]},
         tags=["weather", "data", "current", "forecast"],
     ),
+    "GET /api/fx/rates": paid(
+        "$0.001", "Live fiat currency exchange-rate table for any ISO base currency, with UTC update time, major-currency summary, and full rate map. Params: base optional, default USD. Useful for pricing, invoicing, treasury, travel, and agent commerce. No account, no API key. $0.001/call.",
+        {"base": "USD", "rates": {"EUR": 0.92, "GBP": 0.79, "JPY": 155.2}, "count": 160},
+        input_schema={"type": "object", "properties": {"base": {"type": "string"}}},
+        tags=["fx", "currency", "exchange-rates", "finance", "data", "commerce"],
+    ),
     "GET /api/btc/tip": paid(
         "$0.001", "Latest Bitcoin block height, hash, and mempool stats.",
         {"height": 923000, "hash": "0000000000000000000abc...", "mempool_txs": 12000},
@@ -2906,6 +2912,43 @@ async def weather_current(lat: float, lon: float):
             "wind_gusts_kmh": c.get("wind_gusts_10m"),
             "uv_index_max": (d.get("daily") or {}).get("uv_index_max", [None])[0],
             "observed_at": c.get("time"), "ts": int(time.time())}
+
+
+@app.get("/api/fx/rates")
+async def fx_rates(base: str = "USD"):
+    base = re.sub(r"[^A-Za-z]", "", base or "USD").upper()[:3] or "USD"
+    majors = ["USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "CNY", "ILS"]
+    try:
+        r = await _client.get(f"https://open.er-api.com/v6/latest/{base}", timeout=15,
+                              headers={"User-Agent": "x402atlas-fx/1.0"})
+        d = r.json() if r.status_code == 200 else {}
+        rates = d.get("rates") or {}
+        if rates:
+            return {"base": d.get("base_code") or base,
+                    "rates": rates,
+                    "major_rates": {k: rates.get(k) for k in majors if k in rates and k != base},
+                    "count": len(rates),
+                    "updated_utc": d.get("time_last_update_utc"),
+                    "next_update_utc": d.get("time_next_update_utc"),
+                    "ts": int(time.time()), "upstream": "open.er-api.com"}
+    except Exception:
+        pass
+    try:
+        f = await _client.get(f"https://api.frankfurter.app/latest?from={base}", timeout=15)
+        d = f.json() if f.status_code == 200 else {}
+        rates = dict(d.get("rates") or {})
+        rates[base] = 1.0
+        if rates:
+            return {"base": d.get("base") or base,
+                    "rates": rates,
+                    "major_rates": {k: rates.get(k) for k in majors if k in rates and k != base},
+                    "count": len(rates),
+                    "updated_utc": d.get("date"),
+                    "next_update_utc": None,
+                    "ts": int(time.time()), "upstream": "frankfurter.app"}
+    except Exception:
+        pass
+    return JSONResponse({"error": "upstream FX rates failed", "base": base}, status_code=502)
 
 
 SOL_RPC = "https://api.mainnet-beta.solana.com"
