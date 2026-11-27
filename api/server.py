@@ -18,7 +18,7 @@ from types import SimpleNamespace
 import httpx
 import builtins
 from fastapi import FastAPI, Request, Query
-from fastapi.responses import JSONResponse, Response, PlainTextResponse
+from fastapi.responses import JSONResponse, Response, PlainTextResponse, HTMLResponse
 
 from x402.http import HTTPFacilitatorClient, PaymentOption, FacilitatorConfig
 from x402.http.middleware.fastapi import PaymentMiddlewareASGI
@@ -291,15 +291,15 @@ routes = {
         tags=["token", "verdict", "security", "memecoin", "market-data", "q-verdict"],
     ),
     "GET /api/dashboard/q-verdict/resource": paid(
-        "$0.02", "q-verdict-compatible token verdict resource. Returns grade, one_liner, roast, metrics, page_url, image_url, risk_score, flags, and verdict. Accepts tokenAddress/address and chain. This is AtlasData's independent implementation, not AX1. No account, no API key. $0.02/call.",
-        {"tokenAddress": "0x...", "chain": "base", "grade": "C", "one_liner": "Liquid but volatile", "metrics": {}},
-        input_schema={"type": "object", "properties": {"tokenAddress": {"type": "string"}, "address": {"type": "string"}, "chain": {"type": "string"}}, "required": ["tokenAddress"]},
+        "$0.02", "q-verdict-compatible token verdict resource. Returns a paid operation envelope with grade, one_liner, roast, metrics, shareable page_url and generated card image_url. Accepts tokenAddress/address and chain=base|solana. Includes a free status_url receipt. AtlasData independent implementation. No account, no API key. $0.02/call.",
+        {"operation_id": "4f7b2c1e-8a4d-4e9f-9c21-0b6d7a5e1f22", "status_url": "https://x402atlas.xyz/api/q-verdict/operations/4f7b2c1e-8a4d-4e9f-9c21-0b6d7a5e1f22", "status": "paid", "result": {"grade": "MID", "one_liner": "Liquid but volatile; not a trading signal.", "roast": "The red flags are mostly just the candles.", "metrics": {"tokenAddress": "0x...", "ticker": "USDC", "tokenName": "USD Coin", "fetchedAt": "2026-11-27T00:00:00Z", "metrics": [{"key": "liquidity_usd", "label": "Liquidity", "availability": "available", "value": "1000000", "unit": "USD"}]}, "generatedAt": "2026-11-27T00:00:00Z", "fromCache": False, "disclaimer": "Not financial advice."}, "page_url": "https://x402atlas.xyz/q-verdict/4f7b2c1e-8a4d-4e9f-9c21-0b6d7a5e1f22", "image_url": "https://x402atlas.xyz/api/q-verdict/share/4f7b2c1e-8a4d-4e9f-9c21-0b6d7a5e1f22/card", "payment": {"status": "paid", "amount_raw": "20000", "network": "eip155:8453"}, "recovery": {"url": "https://x402atlas.xyz/api/dashboard/q-verdict/resource", "method": "POST"}, "token_chain": "base"},
+        input_schema={"type": "object", "properties": {"tokenAddress": {"type": "string"}, "address": {"type": "string"}, "chain": {"type": "string", "enum": ["base", "solana"]}, "requestKey": {"type": "string"}}, "required": ["tokenAddress"]},
         tags=["token", "verdict", "q-verdict", "security", "market-data"],
     ),
     "POST /api/dashboard/q-verdict/resource": paid(
-        "$0.02", "POST variant of the q-verdict-compatible token verdict resource. Body: {tokenAddress, chain}. Returns grade, one_liner, roast, metrics, page_url, image_url, risk_score, flags, and verdict. AtlasData independent implementation. No account, no API key. $0.02/call.",
-        {"tokenAddress": "0x...", "chain": "base", "grade": "C", "one_liner": "Liquid but volatile", "metrics": {}},
-        input_schema={"type": "object", "properties": {"tokenAddress": {"type": "string"}, "chain": {"type": "string"}}, "required": ["tokenAddress"]},
+        "$0.02", "POST variant of the q-verdict-compatible token verdict resource. Body: {tokenAddress, chain}. Returns a paid operation envelope with grade, one_liner, roast, metrics, shareable page_url, generated card image_url, and free status_url receipt. AtlasData independent implementation. No account, no API key. $0.02/call.",
+        {"operation_id": "4f7b2c1e-8a4d-4e9f-9c21-0b6d7a5e1f22", "status_url": "https://x402atlas.xyz/api/q-verdict/operations/4f7b2c1e-8a4d-4e9f-9c21-0b6d7a5e1f22", "status": "paid", "result": {"grade": "MID", "one_liner": "Liquid but volatile; not a trading signal.", "roast": "The red flags are mostly just the candles.", "metrics": {"tokenAddress": "0x...", "ticker": "USDC", "tokenName": "USD Coin", "fetchedAt": "2026-11-27T00:00:00Z", "metrics": [{"key": "liquidity_usd", "label": "Liquidity", "availability": "available", "value": "1000000", "unit": "USD"}]}, "generatedAt": "2026-11-27T00:00:00Z", "fromCache": False, "disclaimer": "Not financial advice."}, "page_url": "https://x402atlas.xyz/q-verdict/4f7b2c1e-8a4d-4e9f-9c21-0b6d7a5e1f22", "image_url": "https://x402atlas.xyz/api/q-verdict/share/4f7b2c1e-8a4d-4e9f-9c21-0b6d7a5e1f22/card", "payment": {"status": "paid", "amount_raw": "20000", "network": "eip155:8453"}, "recovery": {"url": "https://x402atlas.xyz/api/dashboard/q-verdict/resource", "method": "POST"}, "token_chain": "base"},
+        input_schema={"type": "object", "properties": {"tokenAddress": {"type": "string"}, "address": {"type": "string"}, "chain": {"type": "string", "enum": ["base", "solana"]}, "requestKey": {"type": "string"}}, "required": ["tokenAddress"]},
         tags=["token", "verdict", "q-verdict", "security", "market-data", "post"],
     ),
     "GET /api/token/[address]": paid(
@@ -1952,8 +1952,8 @@ def _qverdict_envelope(raw):
         "status_url": f"{public_base}/api/q-verdict/operations/{operation_id}",
         "status": "paid",
         "result": result,
-        "page_url": raw.get("page_url"),
-        "image_url": raw.get("image_url"),
+        "page_url": f"{public_base}/q-verdict/{operation_id}",
+        "image_url": f"{public_base}/api/q-verdict/share/{operation_id}/card",
         "payment": {"status": "paid", "amount_raw": "20000", "network": "eip155:8453", "tx_hash": None},
         "recovery": {"url": f"{public_base}/api/dashboard/q-verdict/resource", "method": "POST"},
         "token_chain": raw.get("chain") or "base",
@@ -1962,6 +1962,8 @@ def _qverdict_envelope(raw):
         "risk_score": raw.get("risk_score"),
         "flags": raw.get("flags") or [],
         "implementation": "atlasdata-independent",
+        "supported_token_chains": raw.get("supported_token_chains") or ["base", "solana"],
+        "availability": "ready",
     }
     _QVERDICT_OPS[operation_id] = env
     if len(_QVERDICT_OPS) > 500:
@@ -1991,6 +1993,72 @@ async def qverdict_resource_post(request: Request):
     except Exception:
         body = {}
     return _qverdict_envelope(await _qverdict_result(str(body.get("tokenAddress") or body.get("address") or ""), _qv_chain(str(body.get("chain") or "base"))))
+
+
+def _qv_lookup(operation_id: str):
+    return _QVERDICT_OPS.get(operation_id)
+
+
+def _xml_escape(value):
+    import html
+    return html.escape(str(value or ""), quote=True)
+
+
+@app.get("/api/q-verdict/share/{operation_id}/card")
+async def qverdict_share_card(operation_id: str):
+    found = _qv_lookup(operation_id)
+    if not found:
+        return JSONResponse({"error": "operation not found", "operation_id": operation_id}, status_code=404)
+    result = found.get("result") or {}
+    metrics = (result.get("metrics") or {}).get("metrics") or []
+    vals = {str(x.get("key")): x.get("value") for x in metrics if isinstance(x, dict)}
+    grade = str(result.get("grade") or "MID")
+    colors = {"BASED": ("#0d7a4f", "#dff9ed"), "MID": ("#9a6a00", "#fff3c4"), "COOKED": ("#b44a12", "#ffe1d1"), "RADIOACTIVE": ("#9f1239", "#ffe4e6")}
+    fg, bg = colors.get(grade, colors["MID"])
+    ticker = _xml_escape((result.get("metrics") or {}).get("ticker") or "TOKEN")
+    name = _xml_escape((result.get("metrics") or {}).get("tokenName") or "")
+    one = _xml_escape(result.get("one_liner"))
+    roast = _xml_escape(result.get("roast"))
+    risk = _xml_escape(found.get("risk_score"))
+    liq = _xml_escape(vals.get("liquidity_usd") or "unavailable")
+    vol = _xml_escape(vals.get("volume_24h_usd") or "unavailable")
+    flags = len(found.get("flags") or [])
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+<rect width="1200" height="630" fill="#0b1020"/>
+<rect x="34" y="34" width="1132" height="562" rx="34" fill="{bg}"/>
+<rect x="34" y="34" width="1132" height="112" rx="34" fill="{fg}"/>
+<text x="76" y="104" font-family="Arial,Helvetica,sans-serif" font-size="54" font-weight="800" fill="white">{ticker} TOKEN VERDICT</text>
+<text x="950" y="104" font-family="Arial,Helvetica,sans-serif" font-size="46" font-weight="800" fill="white">{_xml_escape(grade)}</text>
+<text x="76" y="214" font-family="Arial,Helvetica,sans-serif" font-size="34" font-weight="700" fill="#182033">{name}</text>
+<text x="76" y="286" font-family="Arial,Helvetica,sans-serif" font-size="38" font-weight="800" fill="#182033">{one}</text>
+<text x="76" y="350" font-family="Arial,Helvetica,sans-serif" font-size="28" fill="#374151">{roast}</text>
+<rect x="76" y="410" width="300" height="104" rx="18" fill="white" opacity="0.84"/>
+<rect x="416" y="410" width="300" height="104" rx="18" fill="white" opacity="0.84"/>
+<rect x="756" y="410" width="300" height="104" rx="18" fill="white" opacity="0.84"/>
+<text x="100" y="448" font-family="Arial,Helvetica,sans-serif" font-size="20" fill="#6b7280">RISK SCORE</text>
+<text x="100" y="490" font-family="Arial,Helvetica,sans-serif" font-size="38" font-weight="800" fill="#111827">{risk}</text>
+<text x="440" y="448" font-family="Arial,Helvetica,sans-serif" font-size="20" fill="#6b7280">LIQUIDITY USD</text>
+<text x="440" y="490" font-family="Arial,Helvetica,sans-serif" font-size="32" font-weight="800" fill="#111827">{liq}</text>
+<text x="780" y="448" font-family="Arial,Helvetica,sans-serif" font-size="20" fill="#6b7280">24H VOLUME USD</text>
+<text x="780" y="490" font-family="Arial,Helvetica,sans-serif" font-size="32" font-weight="800" fill="#111827">{vol}</text>
+<text x="76" y="566" font-family="Arial,Helvetica,sans-serif" font-size="22" fill="#4b5563">{flags} risk flags • independent AtlasData verdict • not financial advice</text>
+</svg>'''
+    return Response(svg, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=300"})
+
+
+@app.get("/q-verdict/{operation_id}", response_class=HTMLResponse)
+async def qverdict_share_page(operation_id: str):
+    found = _qv_lookup(operation_id)
+    if not found:
+        return HTMLResponse("<h1>Verdict not found</h1>", status_code=404)
+    result = found.get("result") or {}
+    metrics = (result.get("metrics") or {}).get("metrics") or []
+    rows = "".join(f"<tr><th>{_xml_escape(x.get('label'))}</th><td>{_xml_escape(x.get('value') or 'unavailable')} {_xml_escape(x.get('unit') or '')}</td></tr>" for x in metrics if isinstance(x, dict))
+    grade = _xml_escape(result.get("grade") or "MID")
+    ticker = _xml_escape((result.get("metrics") or {}).get("ticker") or "TOKEN")
+    title = f"{ticker} q-verdict: {grade}"
+    body = f'''<!doctype html><html><head><meta charset="utf-8"><title>{_xml_escape(title)}</title><meta property="og:title" content="{_xml_escape(title)}"><meta property="og:image" content="{_xml_escape(found.get('image_url'))}"><style>body{{font-family:Georgia,serif;background:#f7f1df;color:#172033;margin:0}}main{{max-width:850px;margin:40px auto;background:white;border:4px solid #172033;padding:32px;box-shadow:8px 8px 0 #c83232}}h1{{font-size:54px;margin:0 0 8px}}.grade{{font-size:34px;color:#c83232}}table{{width:100%;border-collapse:collapse;margin-top:24px}}th,td{{border-bottom:1px solid #ddd;padding:10px;text-align:left}}th{{color:#555;width:45%}}img{{max-width:100%;border:1px solid #ddd}}</style></head><body><main><h1>{ticker} token verdict</h1><div class="grade">{grade}</div><p><strong>{_xml_escape(result.get('one_liner'))}</strong></p><p>{_xml_escape(result.get('roast'))}</p><img src="/api/q-verdict/share/{_xml_escape(operation_id)}/card" alt="share card"><table>{rows}</table><p>Independent AtlasData verdict. Not financial advice.</p></main></body></html>'''
+    return HTMLResponse(body)
 
 
 @app.get("/api/q-verdict/operations/{operation_id}")
