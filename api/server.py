@@ -327,6 +327,30 @@ routes = {
         input_schema={"type":"object","properties":{"to":{"type":"string"},"data":{"type":"string"}},"required":["to"]},
         tags=["ethereum","gas","estimate","rpc"],
     ),
+    "GET /api/chain/live-balance": paid(
+        "$0.002", "Live Ethereum wallet balance plus balances for caller-supplied ERC20 tokens. Query: address, optional comma-separated tokens, network=ethereum. No account, no API key. $0.002/call.",
+        {"data": {"eth_balance":"0xde0b6b3a7640000","tokens":[]}},
+        input_schema={"type":"object","properties":{"address":{"type":"string"},"tokens":{"type":"string"}},"required":["address"]},
+        tags=["ethereum","wallet","balance","erc20"],
+    ),
+    "GET /api/chain/erc20-transfers": paid(
+        "$0.004", "Recent ERC20 Transfer logs for an Ethereum token and optionally a wallet. Query: contract, optional address, from_block, to_block, limit. No account, no API key. $0.004/call.",
+        {"data": {"count":1,"logs":[]}},
+        input_schema={"type":"object","properties":{"contract":{"type":"string"},"address":{"type":"string"},"limit":{"type":"integer"}},"required":["contract"]},
+        tags=["ethereum","erc20","transfers","logs"],
+    ),
+    "GET /api/chain/ens/[input]": paid(
+        "$0.003", "ENS resolve on Ethereum: turn a .eth name into an address or an address into its primary .eth name. Path: /api/chain/ens/vitalik.eth. No account, no API key. $0.003/call.",
+        {"data": {"name":"vitalik.eth","address":"0xd8da6bf26964af9d7eed9e03e53415d37aa96045"}},
+        path_params={"type":"object","properties":{"input":{"type":"string"}},"required":["input"]},
+        tags=["ethereum","ens","identity","resolver"],
+    ),
+    "GET /api/chain/events": paid(
+        "$0.004", "Ethereum contract event logs via eth_getLogs. Query: contract or address, optional topic0, from_block, to_block, limit. No account, no API key. $0.004/call.",
+        {"data": {"count":1,"logs":[]}},
+        input_schema={"type":"object","properties":{"contract":{"type":"string"},"address":{"type":"string"},"topic0":{"type":"string"}}},
+        tags=["ethereum","events","logs","contract"],
+    ),
     "GET /api/weather": paid(
         "$0.001", "Live global weather report for any place or coordinates: geocoded location, current conditions, apparent temperature, precipitation, wind, pressure, next 24h hourly forecast, and 7-day outlook using Open-Meteo. Params: place=London or lat/lon. No account, no API key. $0.001/call.",
         {"place": "London", "current": {"temperature_c": 12.4, "weather": "light rain"}, "hourly": [], "daily": []},
@@ -1640,6 +1664,87 @@ async def chain_estimate_gas(request: Request):
     body = await request.json()
     tx = {k: body[k] for k in ("from", "to", "data", "value") if body.get(k) is not None}
     return {"data": {"gas": await eth_rpc("eth_estimateGas", [tx])}, "meta": _chain_meta("/api/chain/estimate-gas")}
+
+
+
+
+@app.get("/api/chain/live-balance")
+async def chain_live_balance(address: str, tokens: str = ""):
+    eth = await eth_rpc("eth_getBalance", [address, "latest"])
+    out = []
+    for token in [t.strip() for t in tokens.split(",") if t.strip()][:20]:
+        try:
+            bal = _decode_uint(await _eth_call_mainnet(token, "0x70a08231" + _addr32(address)))
+            meta = await _token_meta(token)
+            out.append({"contract": token.lower(), "balance": bal or "0", **meta})
+        except Exception:
+            continue
+    return {"data": {"address": address.lower(), "eth_balance": eth, "tokens": out}, "meta": _chain_meta("/api/chain/live-balance")}
+
+
+@app.get("/api/chain/erc20-transfers")
+async def chain_erc20_transfers_q(contract: str, address: str = "", from_block: str = "", to_block: str = "latest", limit: int = 50):
+    latest = int((await eth_rpc("eth_blockNumber", [])) or "0x0", 16)
+    frm = from_block or hex(max(0, latest - 2000))
+    topics = [_TRANSFER_TOPIC]
+    logs = []
+    seen = set()
+    if address:
+        pad = "0x" + address.lower().removeprefix("0x").rjust(64, "0")
+        for t in ([_TRANSFER_TOPIC, pad], [_TRANSFER_TOPIC, None, pad]):
+            flt = {"address": contract, "fromBlock": frm, "toBlock": to_block, "topics": t}
+            for lg in (await eth_rpc("eth_getLogs", [flt])) or []:
+                key = (lg.get("transactionHash"), lg.get("logIndex"))
+                if key not in seen:
+                    seen.add(key); logs.append(lg)
+    else:
+        flt = {"address": contract, "fromBlock": frm, "toBlock": to_block, "topics": topics}
+        logs = (await eth_rpc("eth_getLogs", [flt])) or []
+    logs.sort(key=lambda x: int(x.get("blockNumber") or "0x0", 16), reverse=True)
+    return {"data": {"count": min(len(logs), limit), "from_block": frm, "to_block": to_block, "logs": logs[:limit]}, "meta": _chain_meta("/api/chain/erc20-transfers")}
+
+
+def _ens_namehash(name: str):
+    from eth_utils import keccak
+    node = b"\0" * 32
+    if name:
+        for label in reversed(name.lower().strip(".").split(".")):
+            node = keccak(node + keccak(text=label))
+    return node.hex()
+
+
+@app.get("/api/chain/ens/{input}")
+async def chain_ens(input: str):
+    q = input.strip().lower()
+    if not q or len(q) > 120:
+        return JSONResponse({"error": "invalid ENS input"}, status_code=400)
+    try:
+        r = await _client.get("https://api.ensideas.com/ens/resolve/" + q, timeout=15,
+                              headers={"User-Agent": "x402atlas-ens/1.0"})
+        if r.status_code != 200:
+            return JSONResponse({"error": "ens upstream failed", "status": r.status_code}, status_code=502)
+        d = r.json()
+        return {"data": {"input": q, "name": d.get("name") or "", "address": d.get("address") or "",
+                         "display_name": d.get("displayName") or d.get("name") or "",
+                         "avatar": d.get("avatar") or "", "is_reverse": q.startswith("0x")},
+                "meta": {**_chain_meta(f"/api/chain/ens/{input}"), "upstream": "ensideas"}}
+    except Exception as e:
+        return JSONResponse({"error": "ens upstream unavailable", "detail": str(e)[:100]}, status_code=502)
+
+
+@app.get("/api/chain/events")
+async def chain_events(contract: str = "", address: str = "", topic0: str = "", from_block: str = "", to_block: str = "latest", limit: int = 50):
+    target = contract or address
+    if not target:
+        return JSONResponse({"error": "contract or address required"}, status_code=400)
+    latest = int((await eth_rpc("eth_blockNumber", [])) or "0x0", 16)
+    frm = from_block or hex(max(0, latest - 2000))
+    flt = {"address": target, "fromBlock": frm, "toBlock": to_block}
+    if topic0:
+        flt["topics"] = [topic0]
+    logs = (await eth_rpc("eth_getLogs", [flt])) or []
+    logs.sort(key=lambda x: int(x.get("blockNumber") or "0x0", 16), reverse=True)
+    return {"data": {"count": min(len(logs), limit), "from_block": frm, "to_block": to_block, "logs": logs[:limit]}, "meta": _chain_meta("/api/chain/events")}
 
 
 @app.get("/api/weather")
