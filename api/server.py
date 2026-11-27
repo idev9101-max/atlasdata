@@ -811,6 +811,34 @@ if _qv_post is not None:
         _info["input"] = _info_input
         _bz["info"] = _info
 
+for _post_key, _post_body in (
+    ("POST /v1/chat/completions", {"model": "openai-fast", "messages": [{"role": "user", "content": "hello"}]}),
+    ("POST /v1/images/generations", {"prompt": "a red apple", "size": "1024x1024", "model": "flux"}),
+    ("POST /api/v1/chat/completions", {"model": "openai-fast", "messages": [{"role": "user", "content": "hello"}]}),
+):
+    _post_rc = routes.get(_post_key)
+    if _post_rc is not None:
+        _bz = (_post_rc.extensions or {}).get("bazaar") or {}
+        _info = _bz.get("info") or {}
+        _info_input = _info.get("input") or {}
+        if isinstance(_info_input, dict):
+            _info_input.pop("queryParams", None)
+            _info_input["type"] = "http"
+            _info_input["method"] = "POST"
+            _info_input["bodyType"] = "json"
+            _info_input["body"] = _post_body
+            _info["input"] = _info_input
+            _bz["info"] = _info
+        _schema = _bz.get("schema") or {}
+        _input = ((_schema.get("properties") or {}).get("input") or {})
+        _props = _input.get("properties") or {}
+        _props.pop("queryParams", None)
+        _props["method"] = {"type": "string", "const": "POST"}
+        _props["bodyType"] = {"type": "string", "const": "json"}
+        _props["body"] = {"type": "object"}
+        _input["properties"] = _props
+        _input["required"] = ["type", "method", "bodyType", "body"]
+
 app = FastAPI(title="AtlasData  -  paid micro data API", version="0.1.0")
 if not os.environ.get("FREE_MODE"):
     app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=server)
