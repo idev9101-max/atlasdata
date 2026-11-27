@@ -333,6 +333,12 @@ routes = {
         input_schema={"type":"object","properties":{"contract":{"type":"string"},"owner":{"type":"string"},"limit":{"type":"integer"}},"required":["contract","owner"]},
         tags=["ethereum","erc721","nft","wallet","tokens"],
     ),
+    "GET /api/chain/nft-owner": paid(
+        "$0.003", "Current owner of an ERC721 NFT by contract and token_id via ownerOf (eth_call). Params: contract, token_id. No account, no API key. $0.003/call.",
+        {"owner": "0x...", "contract": "0x06012c8cf97BEaD5deAe237070F9587f8E7A266d", "token_id": 1},
+        input_schema={"type": "object", "properties": {"contract": {"type": "string"}, "token_id": {"type": "integer"}}, "required": ["contract", "token_id"]},
+        tags=["ethereum", "nft", "erc721", "owner", "chain", "data"],
+    ),
     "GET /api/chain/erc1155-balance": paid(
         "$0.002", "ERC1155 token balance via balanceOf(owner,id). Query: contract, owner, id, network=ethereum. No account, no API key. $0.002/call.",
         {"data": {"balance":"1"}},
@@ -1726,6 +1732,20 @@ async def chain_erc721_tokens(contract: str, owner: str, limit: int = 50):
     return {"data": {"contract": contract.lower(), "owner": owner.lower(), "balance": count,
                      "count": len(ids), "token_ids": ids, "enumerable_errors": errors},
             "meta": _chain_meta("/api/chain/erc721-tokens")}
+
+
+@app.get("/api/chain/nft-owner")
+async def chain_nft_owner(contract: str, token_id: int):
+    try:
+        data = "0x6352211e" + _hexword(int(token_id))
+        raw = await _eth_call_mainnet(contract, data)
+        if not raw or raw == "0x":
+            return JSONResponse({"error": "ownerOf unavailable"}, status_code=404)
+        owner = "0x" + raw[-40:]
+        return {"data": {"contract": contract.lower(), "token_id": int(token_id), "owner": owner},
+                "meta": _chain_meta("/api/chain/nft-owner")}
+    except Exception as e:
+        return JSONResponse({"error": "ownerOf failed", "detail": str(e)[:120]}, status_code=502)
 
 
 @app.get("/api/chain/erc1155-balance")
