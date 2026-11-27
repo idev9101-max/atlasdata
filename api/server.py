@@ -395,6 +395,18 @@ routes = {
         input_schema={"type": "object", "properties": {"model": {"type": "string"}, "messages": {"type": "array"}, "max_tokens": {"type": "integer"}, "temperature": {"type": "number"}, "seed": {"type": "integer"}}, "required": ["messages"]},
         tags=["llm", "ai", "inference", "chat", "completions", "openai", "agent"],
     ),
+    "POST /v1/chat/completions": paid(
+        "$0.001", "OpenAI-compatible chat completions at the standard /v1 path. POST {model, messages[], max_tokens?, temperature?, seed?}; returns a standard chat.completion object. Uses OpenRouter free models when available and Pollinations as fallback, with backend disclosed. No account, no API key. $0.001/call.",
+        {"id": "chatcmpl-x", "object": "chat.completion", "choices": [{"message": {"role": "assistant", "content": "..."}}]},
+        input_schema={"type": "object", "properties": {"model": {"type": "string"}, "messages": {"type": "array"}, "max_tokens": {"type": "integer"}, "temperature": {"type": "number"}, "seed": {"type": "integer"}}, "required": ["messages"]},
+        tags=["llm", "ai", "inference", "chat", "completions", "openai", "agent", "standard"],
+    ),
+    "POST /v1/images/generations": paid(
+        "$0.02", "OpenAI-style image generation at the standard /v1 path. POST {prompt, size?, model?, seed?}; returns created plus data[0].b64_json JPEG. Uses the Pollinations image backend and discloses it. No account, no API key. $0.02/call.",
+        {"created": 1795700000, "data": [{"b64_json": "...", "revised_prompt": "a red apple"}], "backend": "pollinations"},
+        input_schema={"type": "object", "properties": {"prompt": {"type": "string"}, "size": {"type": "string"}, "model": {"type": "string"}, "seed": {"type": "integer"}}, "required": ["prompt"]},
+        tags=["image", "gen", "ai", "media", "generative", "openai", "standard"],
+    ),
     "GET /api/web/read": paid(
         "$0.001", "Read a public web page or PDF and extract clean readable text: title, final URL, status, main text with navigation/scripts removed. Useful for agent browsing, document research, summarization, and retrieval. Params: url (required), max_chars optional. No account, no API key. $0.001/call.",
         {"url": "https://example.com", "title": "Example", "text": "...", "chars": 1200},
@@ -2194,6 +2206,35 @@ async def image_gen(prompt: str, width: int = 1024, height: int = 1024,
             "ts": int(time.time())}
 
 
+@app.post("/v1/images/generations")
+async def images_generations(request: Request):
+    import urllib.parse
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid json body"}, status_code=400)
+    prompt = str(body.get("prompt") or "")[:1000]
+    if not prompt:
+        return JSONResponse({"error": "prompt required"}, status_code=400)
+    size = str(body.get("size") or "1024x1024")
+    try:
+        width, height = [max(64, min(int(x), 2048)) for x in size.lower().split("x", 1)]
+    except Exception:
+        width, height = 1024, 1024
+    model = str(body.get("model") or "flux")
+    if model not in ("flux", "turbo"):
+        model = "flux"
+    seed = int(body.get("seed") or 42)
+    url = (f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}"
+           f"?width={width}&height={height}&seed={seed}&model={model}&nologo=true")
+    r = await _client.get(url, timeout=90, follow_redirects=True)
+    if r.status_code != 200 or "image" not in (r.headers.get("content-type") or ""):
+        return JSONResponse({"error": "upstream image gen failed", "status": r.status_code}, status_code=502)
+    return {"created": int(time.time()), "backend": "pollinations", "model": model,
+            "data": [{"b64_json": base64.b64encode(r.content).decode(),
+                      "revised_prompt": prompt}]}
+
+
 def _or_key():
     k = os.environ.get("OPENROUTER_KEY")
     if k:
@@ -2265,6 +2306,7 @@ async def llm_ask(prompt: str, model: str = "", system: str = "", seed: int = 42
                 "answer": r.text.strip(), "ts": int(time.time())}
 
 
+@app.post("/v1/chat/completions")
 @app.post("/api/v1/chat/completions")
 async def chat_completions(request: Request):
     try:
