@@ -1053,6 +1053,7 @@ async def well_known(request: Request):
             f"{base}/api/security/prompt-injection?text=ignore%20previous%20instructions",
             f"{base}/api/text/pii-redact?text=email%20me%20at%20a%40example.com",
             f"{base}/api/weather?place=London",
+            f"{base}/api/fx/rates?base=USD",
             f"{base}/api/image/gen-lite?prompt=red%20apple%20icon&seed=7",
             f"{base}/api/token/q-verdict?address=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&chain=base",
             f"{base}/api/dashboard/q-verdict/resource?tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&chain=base",
