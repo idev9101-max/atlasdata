@@ -5442,6 +5442,76 @@ MCP_TOOL_DEFS = [
         "tags": ["weather", "forecast", "climate", "market-data"],
     },
     {
+        "name": "eth_block_number",
+        "price": "$0.001",
+        "description": "Latest Ethereum block height via eth_blockNumber.",
+        "inputSchema": {"type": "object", "properties": {}},
+        "tags": ["ethereum", "chain", "block"],
+    },
+    {
+        "name": "eth_chain_id",
+        "price": "$0.001",
+        "description": "Ethereum chain ID via eth_chainId.",
+        "inputSchema": {"type": "object", "properties": {}},
+        "tags": ["ethereum", "chain", "network"],
+    },
+    {
+        "name": "eth_erc20_balance",
+        "price": "$0.002",
+        "description": "ERC20 token balance for any Ethereum wallet via balanceOf, with token metadata.",
+        "inputSchema": {"type": "object", "properties": {"address": {"type": "string"}, "contract": {"type": "string"}}, "required": ["address", "contract"]},
+        "tags": ["ethereum", "erc20", "balance", "wallet"],
+    },
+    {
+        "name": "eth_live_balance",
+        "price": "$0.002",
+        "description": "Live Ethereum wallet ETH balance plus balances for up to 20 caller-supplied ERC20 tokens.",
+        "inputSchema": {"type": "object", "properties": {"address": {"type": "string"}, "tokens": {"type": "string", "description": "Optional comma-separated token contracts"}}, "required": ["address"]},
+        "tags": ["ethereum", "balance", "wallet", "erc20"],
+    },
+    {
+        "name": "eth_total_supply",
+        "price": "$0.002",
+        "description": "Total supply of an ERC20 or ERC721 token contract via totalSupply, with token metadata.",
+        "inputSchema": {"type": "object", "properties": {"contract": {"type": "string"}}, "required": ["contract"]},
+        "tags": ["ethereum", "erc20", "supply", "token"],
+    },
+    {
+        "name": "eth_nonce",
+        "price": "$0.001",
+        "description": "Next transaction nonce for any Ethereum wallet via eth_getTransactionCount.",
+        "inputSchema": {"type": "object", "properties": {"address": {"type": "string"}}, "required": ["address"]},
+        "tags": ["ethereum", "nonce", "wallet"],
+    },
+    {
+        "name": "eth_block",
+        "price": "$0.001",
+        "description": "Ethereum block header and transaction hashes by number, tag, or hex.",
+        "inputSchema": {"type": "object", "properties": {"number": {"type": "string", "default": "latest"}}},
+        "tags": ["ethereum", "block", "chain"],
+    },
+    {
+        "name": "eth_events",
+        "price": "$0.004",
+        "description": "Ethereum contract event logs via eth_getLogs, filtered by contract, topic, block range, and limit.",
+        "inputSchema": {"type": "object", "properties": {"contract": {"type": "string"}, "topic0": {"type": "string"}, "from_block": {"type": "string"}, "to_block": {"type": "string", "default": "latest"}, "limit": {"type": "integer", "default": 50, "maximum": 200}}, "required": ["contract"]},
+        "tags": ["ethereum", "events", "logs", "contract"],
+    },
+    {
+        "name": "eth_nft_owner",
+        "price": "$0.003",
+        "description": "Current owner of an ERC721 NFT by contract and token_id via ownerOf.",
+        "inputSchema": {"type": "object", "properties": {"contract": {"type": "string"}, "token_id": {"type": "integer"}}, "required": ["contract", "token_id"]},
+        "tags": ["ethereum", "nft", "erc721", "owner"],
+    },
+    {
+        "name": "eth_allowance",
+        "price": "$0.002",
+        "description": "ERC20 allowance for owner and spender via allowance(owner,spender), with token metadata.",
+        "inputSchema": {"type": "object", "properties": {"contract": {"type": "string"}, "owner": {"type": "string"}, "spender": {"type": "string"}}, "required": ["contract", "owner", "spender"]},
+        "tags": ["ethereum", "erc20", "allowance", "approval"],
+    },
+    {
         "name": "eth_contract_info",
         "price": "$0.003",
         "description": "Inspect an Ethereum contract: bytecode presence, ERC20 metadata, symbol, decimals, total supply, and contract classification.",
@@ -5587,6 +5657,26 @@ async def _mcp_execute_tool(name, arguments):
             except Exception:
                 return {"error": "weather request failed", "status": result.status_code}
         return result
+    if name == "eth_block_number":
+        return await _first_route_endpoint("/api/chain/block-number")()
+    if name == "eth_chain_id":
+        return await _first_route_endpoint("/api/chain/chain-id")()
+    if name == "eth_erc20_balance":
+        return await _first_route_endpoint("/api/chain/erc20-balance")(str(arguments.get("address") or ""), str(arguments.get("contract") or ""))
+    if name == "eth_live_balance":
+        return await _first_route_endpoint("/api/chain/live-balance")(str(arguments.get("address") or ""), str(arguments.get("tokens") or ""))
+    if name == "eth_total_supply":
+        return await _first_route_endpoint("/api/chain/total-supply")(str(arguments.get("contract") or ""))
+    if name == "eth_nonce":
+        return await _first_route_endpoint("/api/chain/nonce/{address}")(str(arguments.get("address") or ""))
+    if name == "eth_block":
+        return await _first_route_endpoint("/api/chain/block/{number}")(str(arguments.get("number") or "latest"))
+    if name == "eth_events":
+        return await _first_route_endpoint("/api/chain/events")(str(arguments.get("contract") or ""), str(arguments.get("contract") or ""), str(arguments.get("topic0") or ""), str(arguments.get("from_block") or ""), str(arguments.get("to_block") or "latest"), min(200, max(1, int(arguments.get("limit") or 50))))
+    if name == "eth_nft_owner":
+        return await chain_nft_owner(str(arguments.get("contract") or ""), int(arguments.get("token_id") or 0))
+    if name == "eth_allowance":
+        return await _first_route_endpoint("/api/chain/allowance")(str(arguments.get("contract") or ""), str(arguments.get("owner") or ""), str(arguments.get("spender") or ""))
     if name == "eth_contract_info":
         return await _first_route_endpoint("/api/chain/contract/{address}")(str(arguments.get("address") or ""))
     if name == "eth_nft_metadata":
